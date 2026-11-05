@@ -50,7 +50,8 @@ function parse(v) {
 }
 
 function slug(n) {
-  return String(n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spelare';
+  // Skiftläge och mellanrum spelar ingen roll, men å, ä och ö skiljer namn åt (Åsa är inte Asa).
+  return String(n).normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spelare';
 }
 
 function cleanName(n) {
@@ -128,6 +129,9 @@ export async function POST(request) {
 
     if (body.type === 'round') {
       if (Number(body.expect) !== state.round.n) return json(409, { error: 'round_changed', state });
+      // Ett lås per omgång: om två trycker samtidigt vinner bara den första, den andra får 409.
+      const [got] = await redis(cfg, [['SET', `ra:roundlock:${state.round.n}`, '1', 'NX', 'EX', '120']]);
+      if (got !== 'OK') return json(409, { error: 'round_changed', state: await readState(cfg) });
       const seed = crypto.getRandomValues(new Uint32Array(1))[0];
       const round = { n: state.round.n + 1, seed, startedAt: Date.now() };
       await redis(cfg, [['SET', KEY_ROUND, JSON.stringify(round)]]);

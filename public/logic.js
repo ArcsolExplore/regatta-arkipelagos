@@ -98,13 +98,53 @@ function stepParts(parts, dt) {
 }
 
 /* ---------- båtar ---------- */
-function sailHull(ctx) {
+function bezPt(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+  return [a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]];
+}
+function bezPoly(p0, p1, p2, p3, n) {
+  const out = [];
+  for (let i = 0; i <= n; i++) out.push(bezPt(p0, p1, p2, p3, i / n));
+  return out;
+}
+// Skrovens konturer som konvexa polygoner. Exakt samma punkter ritas och används för kollision,
+// så det som syns är det som räknas: en nära miss är en miss och en snuddad hörna är en träff.
+const SAIL_HULL = [...bezPoly([18, 0], [12, -7.5], [-2, -8], [-13, -6.5], 8), ...bezPoly([-13, 6.5], [-2, 8], [12, 7.5], [18, 0], 8).slice(0, -1)];
+const MB_HULL = (() => {
+  const right = bezPoly([0, -22], [9, -15], [10.5, 4], [9, 20], 8);
+  return [...right, ...right.slice(1).reverse().map(([x, y]) => [-x, y])];
+})();
+function pathPoly(ctx, P) {
   ctx.beginPath();
-  ctx.moveTo(18, 0);
-  ctx.bezierCurveTo(12, -7.5, -2, -8, -13, -6.5);
-  ctx.lineTo(-13, 6.5);
-  ctx.bezierCurveTo(-2, 8, 12, 7.5, 18, 0);
+  P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
   ctx.closePath();
+}
+function sailHull(ctx) {
+  pathPoly(ctx, SAIL_HULL);
+}
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? clamp(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1) : 0;
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+function pointInPoly(px, py, P) {
+  let inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, yi] = P[i], [xj, yj] = P[j];
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// Avstånd från en cirkels mitt till polygonens kant; negativt om mitten ligger inuti.
+function polyPointGap(P, cx, cy) {
+  let m = Infinity;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[(i + 1) % P.length];
+    m = Math.min(m, segDist(cx, cy, a[0], a[1], b[0], b[1]));
+  }
+  return pointInPoly(cx, cy, P) ? -m : m;
 }
 
 function sailShape(ctx, mx, my, len, s, belly) {
@@ -173,14 +213,7 @@ function drawMotorboat(ctx, x, y, rot, accent, sc = 1) {
   ctx.translate(x, y);
   ctx.rotate(rot);
   ctx.scale(sc, sc);
-  const hull = () => {
-    ctx.beginPath();
-    ctx.moveTo(0, -22);
-    ctx.bezierCurveTo(9, -15, 10.5, 4, 9, 20);
-    ctx.lineTo(-9, 20);
-    ctx.bezierCurveTo(-10.5, 4, -9, -15, 0, -22);
-    ctx.closePath();
-  };
+  const hull = () => pathPoly(ctx, MB_HULL);
   ctx.save();
   ctx.translate(2.5, 3.5);
   hull();
@@ -238,6 +271,16 @@ function granite(ctx, path) {
    KRYSSBANAN – kryssa upp till bojen, runda, lensa hem.
    ===================================================================== */
 const KRY = { W: 400, H: 720, LY: 612, LX0: 72, LX1: 328, BX: 200, BY: 118, ZONE: 140, RESET: 185, MAX: 104, TURN: 2.2, WALL: 26, ZOOM: 1.8 };
+
+// Strandkanten på en given höjd, linjär mellan punkterna precis som den ritas.
+function kryShoreX(pts, y) {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    if (y >= a.y && y <= b.y) return lerp(a.w, b.w, (y - a.y) / (b.y - a.y));
+  }
+  return y < pts[0].y ? pts[0].w : pts[pts.length - 1].w;
+}
+const KRY_BUOY_R = 9;
 
 // Kameran följer båten med inzoomning, men visar aldrig något utanför banan.
 function kryCamClamp(x, y) {
@@ -345,24 +388,37 @@ const kryss = {
 
     let nx = s.x + Math.cos(s.a) * s.speed * dt;
     let ny = s.y + Math.sin(s.a) * s.speed * dt;
-    if (nx < KRY.WALL || nx > KRY.W - KRY.WALL) {
-      nx = clamp(nx, KRY.WALL, KRY.W - KRY.WALL);
-      s.speed *= Math.exp(-6 * dt);
-      if (s.msgT <= 0) say(s, 'GRUND!', '#ff6b6b', 0.5);
-    }
     if (ny < 20 || ny > KRY.H - 20) {
       ny = clamp(ny, 20, KRY.H - 20);
       s.speed *= Math.exp(-6 * dt);
     }
 
-    // Bojen är ett hinder.
-    let bdx = nx - KRY.BX, bdy = ny - KRY.BY, bd = Math.hypot(bdx, bdy);
-    if (bd < 13 && bd > 0.001) {
-      nx = KRY.BX + (bdx / bd) * 13;
-      ny = KRY.BY + (bdy / bd) * 13;
-      s.speed *= Math.exp(-8 * dt);
-      bdx = nx - KRY.BX; bdy = ny - KRY.BY; bd = 13;
+    // Strand och boj möter skrovets kontur, inte bara båtens mittpunkt.
+    let aground = false, onBuoy = false;
+    for (let iter = 0; iter < 4; iter++) {
+      let P = placePts(SAIL_HULL, nx, ny, s.a);
+      let inL = 0, inR = 0;
+      for (const [px, py] of P) {
+        inL = Math.max(inL, kryShoreX(s.shore[0], py) - px);
+        inR = Math.max(inR, px - (KRY.W - kryShoreX(s.shore[1], py)));
+      }
+      let moved = false;
+      if (inL > 0) { nx += inL + 0.01; aground = moved = true; }
+      if (inR > 0) { nx -= inR + 0.01; aground = moved = true; }
+      if (moved) P = placePts(SAIL_HULL, nx, ny, s.a);
+      const gap = polyPointGap(P, KRY.BX, KRY.BY);
+      if (gap < KRY_BUOY_R) {
+        const dx = nx - KRY.BX, dy = ny - KRY.BY;
+        const dl = Math.hypot(dx, dy) || 1;
+        nx += (dx / dl) * (KRY_BUOY_R - gap + 0.01);
+        ny += (dy / dl) * (KRY_BUOY_R - gap + 0.01);
+        onBuoy = moved = true;
+      }
+      if (!moved) break;
     }
+    if (aground || onBuoy) s.speed *= Math.exp(-(onBuoy ? 8 : 6) * dt);
+    if (aground && s.msgT <= 0) say(s, 'GRUND!', '#ff6b6b', 0.5);
+    const bdx = nx - KRY.BX, bdy = ny - KRY.BY, bd = Math.hypot(bdx, bdy);
 
     const onLine = (x) => x >= KRY.LX0 && x <= KRY.LX1;
     if (s.phase === 0 && s.y >= KRY.LY && ny < KRY.LY && onLine(nx)) {
@@ -488,7 +544,7 @@ const kryss = {
     ctx.fill();
     ctx.fillStyle = '#ff7a1a';
     ctx.beginPath();
-    ctx.arc(KRY.BX, KRY.BY, 9, 0, TAU);
+    ctx.arc(KRY.BX, KRY.BY, KRY_BUOY_R, 0, TAU);
     ctx.fill();
     ctx.strokeStyle = '#f4f4f0';
     ctx.lineWidth = 2.5;
@@ -615,7 +671,15 @@ function slGen(s, upto) {
         if (roll > dens || len < 2 * rad) continue;
         const verts = [];
         for (let j = 0; j < 9; j++) verts.push(0.78 + r() * 0.34);
-        s.rocks.push({ x: a + rad + pos * (len - 2 * rad), y: d + (r() * 2 - 1) * 14, rad, verts, rot: r() * TAU });
+        const k = { x: a + rad + pos * (len - 2 * rad), y: d + (r() * 2 - 1) * 14, rad, verts, rot: r() * TAU };
+        // Skärets kontur i världskoordinater (y uppåt längs banan), som trianglar från mitten.
+        const wv = verts.map((m, j) => {
+          const ang = k.rot + (j / verts.length) * TAU;
+          return [k.x + Math.cos(ang) * rad * m, k.y - Math.sin(ang) * rad * m];
+        });
+        k.tris = wv.map((v, j) => [[k.x, k.y], v, wv[(j + 1) % wv.length]]);
+        k.box = polyBox(wv);
+        s.rocks.push(k);
       }
     }
     if (s.rowN % 3 === 2) s.buoys.push({ x: s.gc, y: d, got: false });
@@ -637,6 +701,11 @@ const slalom = {
   },
   score(s) {
     return Math.floor(s.d / 10) + s.bonus;
+  },
+  // Skrovet i världskoordinater, med samma lutning som när det ritas.
+  hull(s) {
+    const rot = (s.vx / 290) * 0.35, c = Math.cos(rot), sn = Math.sin(rot);
+    return MB_HULL.map(([px, py]) => [s.x + px * c - py * sn, s.d - (px * sn + py * c)]);
   },
   crash(s, text) {
     s.alive = false;
@@ -666,16 +735,21 @@ const slalom = {
     s.rocks = s.rocks.filter((k) => k.y > s.d - 300);
     s.buoys = s.buoys.filter((b) => b.y > s.d - 300);
 
+    // Kollision mellan skrovets kontur och skärens kontur: exakt det som ritas.
+    const hull = slalom.hull(s);
+    const hb = polyBox(hull);
     for (const k of s.rocks) {
-      if (Math.abs(k.y - s.d) > 60) continue;
-      if (Math.hypot(k.x - s.x, k.y - s.d) < k.rad * 0.82 + 8) {
+      if (k.box.x1 <= hb.x0 || hb.x1 <= k.box.x0 || k.box.y1 <= hb.y0 || hb.y1 <= k.box.y0) continue;
+      if (k.tris.some((t) => polysOverlap(hull, t))) {
         slalom.crash(s, 'GRUNDSTÖTNING!');
         return;
       }
     }
-    if (s.x - 8 < shoreW(s.d, 0) || s.x + 8 > SL.W - shoreW(s.d, 1)) {
-      slalom.crash(s, 'PÅ LAND!');
-      return;
+    for (const [px, py] of hull) {
+      if (px < shoreW(py, 0) || px > SL.W - shoreW(py, 1)) {
+        slalom.crash(s, 'PÅ LAND!');
+        return;
+      }
     }
     for (const b of s.buoys) {
       if (!b.got && Math.hypot(b.x - s.x, b.y - s.d) < 21) {
@@ -719,7 +793,7 @@ const slalom = {
       granite(ctx, () => {
         ctx.beginPath();
         ctx.moveTo(side === 0 ? -6 : W + 6, -10);
-        for (let y = -10; y <= H + 10; y += 10) {
+        for (let y = -10; y <= H + 10; y += 4) {
           const w = shoreW(s.d + by - y, side);
           ctx.lineTo(side === 0 ? w : W - w, y);
         }
@@ -1710,5 +1784,5 @@ const parkera = {
 const GAME_LOGIC = { kryss, slalom, fortoj, parkera };
 
 if (typeof module !== 'undefined') {
-  module.exports = { GAME_LOGIC, rng, hashStr, fmtTime, fmtNum, angDiff, KRY, FT, SL, slSpeed, shoreW, PK, PK_HULL, pkBuild, pkPhysics, pkWind, polysOverlap, placePts, rectPts, hullPts, pkInBerth, pkGap, pkIdeal, pkAligned };
+  module.exports = { MB_HULL, SAIL_HULL, kryShoreX, polyPointGap, slGen, GAME_LOGIC, rng, hashStr, fmtTime, fmtNum, angDiff, KRY, FT, SL, slSpeed, shoreW, PK, PK_HULL, pkBuild, pkPhysics, pkWind, polysOverlap, placePts, rectPts, hullPts, pkInBerth, pkGap, pkIdeal, pkAligned };
 }

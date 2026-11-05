@@ -43,7 +43,8 @@
   };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   function slug(n) {
-    return String(n).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spelare';
+    // Skiftläge och mellanrum spelar ingen roll, men å, ä och ö skiljer namn åt (Åsa är inte Asa).
+    return String(n).normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spelare';
   }
   function vibrate(ms) {
     try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { /* stöds inte */ }
@@ -133,10 +134,13 @@
   };
   const GAME_ORDER = ['kryss', 'slalom', 'fortoj', 'parkera'];
   const isBetter = (g, a, b) => (GAMES[g].better === 'low' ? a < b : a > b);
+  // Samma gränser som servern. Ett resultat utanför dem sparas aldrig, varken där eller här.
+  const RANGE = { kryss: [3000, 900000], slalom: [0, 200000], fortoj: [0, 500], parkera: [5000, 1800000] };
+  const inRange = (g, v) => Number.isFinite(v) && ((g === 'parkera' && v === PK.DNF) || (RANGE[g] && v >= RANGE[g][0] && v <= RANGE[g][1]));
   // Ett underkänt försök sparas som en tid som alltid är sämst, så det aldrig slår en giltig tid.
   const isDnf = (g, v) => g === 'parkera' && v >= PK.DNF;
   const fmtScore = (g, v) => (isDnf(g, v) ? 'Underkänd' : GAMES[g].unit === 'time' ? fmtTime(v) : `${v} p`);
-  const validRec = (r) => r && typeof r.name === 'string' && r.name.trim().length > 0 && r.name.length <= 24 && GAMES[r.game] && Number.isFinite(r.score) && r.score >= 0 && r.score < 1e8;
+  const validRec = (r) => r && typeof r.name === 'string' && r.name.trim().length > 0 && r.name.length <= 24 && GAMES[r.game] && inRange(r.game, r.score);
 
   /* ---------- namn ---------- */
   const getName = () => {
@@ -160,6 +164,12 @@
     Sync.local = { round: { n: 1, seed: DEFAULT_SEED, startedAt: null }, scores: [] };
   }
   const persistLocal = () => LS.set('ra_local', Sync.local);
+  // Rensa bort sparade resultat som servern aldrig skulle godta (t.ex. från en äldre version).
+  {
+    const before = Sync.local.scores.length;
+    Sync.local.scores = Sync.local.scores.filter(validRec);
+    if (Sync.local.scores.length !== before) persistLocal();
+  }
 
   function allScores() {
     const n = Sync.round.n;
@@ -208,10 +218,10 @@
     try {
       const { status, data } = await api('GET');
       if (status === 200 && data) {
-        const wasShared = Sync.mode === 'shared';
         Sync.mode = 'shared';
         applyState(data);
-        if (!wasShared) flushPending();
+        // Skicka väntande resultat varje gång servern svarar, inte bara när nätet kommer tillbaka.
+        if (Sync.local.scores.some((r) => r.src === 'pending')) await flushPending();
       } else if (status === 503 || status === 404) {
         goLocal();
       } else if (Sync.mode === 'shared') {
@@ -232,23 +242,36 @@
     Sync.round = Sync.local.round;
   }
 
+  let flushing = false;
   async function flushPending() {
-    const pend = Sync.local.scores.filter((r) => r.src === 'pending' && r.round === Sync.round.n);
-    for (const r of pend) {
-      try {
-        const { status } = await api('POST', { type: 'score', round: r.round, game: r.game, name: r.name, score: r.score });
-        if (status === 200 || status === 409) {
+    if (flushing) return;
+    flushing = true;
+    try {
+      const pend = Sync.local.scores.filter((r) => r.src === 'pending');
+      for (const r of pend) {
+        let status, data;
+        try {
+          ({ status, data } = await api('POST', { type: 'score', round: r.round, game: r.game, name: r.name, score: r.score }));
+        } catch (e) {
+          return; // nätet borta igen: försök vid nästa svar
+        }
+        // 200 = sparat, 409 = omgången har bytts, 400 = ogiltigt. I alla tre fallen är det klart.
+        if (status === 200 || status === 409 || status === 400) {
           Sync.local.scores = Sync.local.scores.filter((x) => x !== r);
           persistLocal();
+          if (data && data.state) applyState(data.state);
         }
-      } catch (e) {
-        return;
       }
+    } finally {
+      flushing = false;
     }
   }
 
-  async function saveScore(game, name, score) {
-    const n = Sync.round.n;
+  async function saveScore(game, name, score, roundN) {
+    const n = roundN === undefined ? Sync.round.n : roundN;
+    // Spelet kördes på en omgång som inte längre gäller: banan var en annan, så resultatet räknas inte.
+    if (n !== Sync.round.n) return { improved: false, where: 'stale', prev: null };
+    if (!inRange(game, score)) return { improved: false, where: 'rejected', prev: null };
     const key = game + ':' + slug(name);
     const prev = allScores().find((r) => r.game + ':' + slug(r.name) === key) || null;
     const improved = !prev || isBetter(game, score, prev.score);
@@ -267,6 +290,7 @@
             if (data && data.state) applyState(data.state);
             return { improved: false, where: 'stale', prev };
           }
+          if (status === 400) return { improved: false, where: 'rejected', prev };
           if (status === 503) {
             goLocal();
             break;
@@ -357,6 +381,7 @@
 
   function setView(v) {
     if (!['spel', 'topplista', 'kort'].includes(v)) v = 'spel';
+    if (view === 'kort' && v !== 'kort') stopTimer();
     view = v;
     for (const id of ['spel', 'topplista', 'kort']) $('#view-' + id).hidden = id !== v;
     document.querySelectorAll('.tab').forEach((t) => {
@@ -477,9 +502,14 @@
       game ? h('button', { class: 'btn small', type: 'button', onclick: () => startGame(game) }, `Spela ${GAMES[game].title}`) : null);
   }
 
-  function renderAll() {
+  let lastSig = '';
+  function renderAll(force) {
     renderSyncChip();
     if (!$('#play').hidden && Play.running) return;
+    // Bygg bara om vyerna när något faktiskt ändrats, så att ett tryck inte försvinner mitt i en omritning.
+    const sig = JSON.stringify([Sync.mode, Sync.round, Sync.shared, Sync.local.scores, getName(), boardTab]);
+    if (!force && sig === lastSig) return;
+    lastSig = sig;
     renderHome();
     renderBoard();
   }
@@ -488,7 +518,7 @@
   let sheetClose = null;
   function openSheet(title, body, actions, onClose) {
     $('#sheetTitle').textContent = title;
-    $('#sheetBody').replaceChildren(...(Array.isArray(body) ? body : [body]));
+    $('#sheetBody').replaceChildren(...(Array.isArray(body) ? body : [body]).filter(Boolean));
     $('#sheetActions').replaceChildren(...actions.map((a) => h('button', { class: 'btn' + (a.kind ? ' ' + a.kind : ''), type: a.submit ? 'submit' : 'button', onclick: a.onClick }, a.label)));
     $('#sheet').hidden = false;
     sheetClose = onClose || null;
@@ -509,8 +539,8 @@
     const err = h('p', { class: 'err', hidden: true });
     const save = () => {
       const n = input.value.trim().replace(/\s+/g, ' ');
-      if (!n) {
-        err.textContent = 'Skriv ett namn med minst ett tecken.';
+      if (!/[\p{L}\p{N}]/u.test(n)) {
+        err.textContent = 'Skriv ett namn med minst en bokstav eller siffra.';
         err.hidden = false;
         return;
       }
@@ -566,13 +596,20 @@
       [{ label: 'Spara', onClick: async () => {
         const n = nameIn.value.trim().replace(/\s+/g, ' ');
         const sc = parseScore(sel.value, scoreIn.value);
-        if (!n) { err.textContent = 'Skriv ett namn.'; err.hidden = false; return; }
+        if (!/[\p{L}\p{N}]/u.test(n)) { err.textContent = 'Skriv ett namn med minst en bokstav eller siffra.'; err.hidden = false; return; }
         if (sc == null) { err.textContent = GAMES[sel.value].unit === 'time' ? 'Skriv tiden som 0:24,3.' : 'Skriv poängen som en siffra.'; err.hidden = false; return; }
+        if (!inRange(sel.value, sc)) {
+          const [lo, hi] = RANGE[sel.value];
+          err.textContent = `${GAMES[sel.value].title} tar resultat mellan ${fmtScore(sel.value, lo)} och ${fmtScore(sel.value, hi)}.`;
+          err.hidden = false;
+          return;
+        }
         const out = await saveScore(sel.value, n, sc);
+        if (out.where === 'rejected') { err.textContent = 'Servern godtog inte resultatet.'; err.hidden = false; return; }
         closeSheet();
         boardTab = sel.value;
         renderAll();
-        if (!out.improved) toastSheet('Inget nytt rekord', `${n} har redan ${fmtScore(sel.value, out.prev.score)} i ${GAMES[sel.value].title}.`);
+        if (!out.improved && out.prev) toastSheet('Inget nytt rekord', `${n} har redan ${fmtScore(sel.value, out.prev.score)} i ${GAMES[sel.value].title}.`);
       } }, { label: 'Avbryt', kind: 'ghost', onClick: closeSheet }]);
   }
   function toastSheet(title, text) {
@@ -696,7 +733,9 @@
 
   function loop(now) {
     if (!Play.running) return;
-    const dt = Math.min(0.05, (now - Play.last) / 1000);
+    // Spelets tid följer verklig tid även på långsamma telefoner; stegen delas upp i 1/120 s.
+    // Taket på 0,25 s gäller bara efter en paus (t.ex. när appen legat i bakgrunden).
+    const dt = Math.min(0.25, (now - Play.last) / 1000);
     Play.last = now;
     const g = Play.game, s = Play.s;
     let rem = dt;
@@ -877,6 +916,7 @@
     Play.ended = false;
     Play.running = false;
     cancelAnimationFrame(Play.raf);
+    Play.round = Sync.round.n; // resultatet hör till omgången spelet startade i
     Play.s = g.create(seedFor(id));
     resetInput();
     Play.input.skot = 0.45;
@@ -940,7 +980,7 @@
     document.body.style.overflow = '';
     Play.game = null;
     Play.s = null;
-    renderAll();
+    renderAll(true);
   }
   $('#quitBtn').addEventListener('click', quitGame);
 
@@ -964,8 +1004,10 @@
         h('button', { class: 'btn ghost', type: 'button', onclick: () => { quitGame(); location.hash = '#spel'; } }, 'Meny'))));
     p.hidden = false;
 
-    const out = await saveScore(g.id, name, res.score);
-    if (out.where === 'stale') {
+    const out = await saveScore(g.id, name, res.score, Play.round);
+    if (out.where === 'rejected') {
+      status.textContent = 'Resultatet ligger utanför det tillåtna och sparades inte.';
+    } else if (out.where === 'stale') {
       status.textContent = 'En ny omgång startade medan du spelade, så resultatet räknades inte. Spela igen på den nya banan.';
     } else if (res.dnf) {
       status.textContent = out.prev && !isDnf(g.id, out.prev.score) ? `Ingen giltig tid. Ditt bästa är fortfarande ${fmtScore(g.id, out.prev.score)}.` : 'Ingen giltig tid. Du står som underkänd tills du klarar alla scener.';
@@ -977,7 +1019,7 @@
     }
     const rk = gameRanking(g.id);
     const mine = rk.find((r) => slug(r.name) === slug(name));
-    if (mine && out.where !== 'stale') rankLine.textContent = `Plats ${mine.rank + 1} av ${rk.length} i ${g.title}, omgång ${Sync.round.n}.`;
+    if (mine && out.where !== 'stale' && out.where !== 'rejected') rankLine.textContent = `Plats ${mine.rank + 1} av ${rk.length} i ${g.title}, omgång ${Sync.round.n}.`;
   }
 
   /* =====================================================================
@@ -1075,9 +1117,14 @@
   /* ---------- start ---------- */
   Play.input = inputProxy; // spelen läser via proxyn
   setView(location.hash.slice(1) || 'spel');
-  renderAll();
+  renderAll(true);
   poll();
+  // Var 5:e sekund mot den delade topplistan; finns den inte, titta bara efter den var 30:e sekund.
+  let tick = 0;
   setInterval(() => {
-    if (document.visibilityState === 'visible' && !Play.running) poll();
+    tick++;
+    if (document.visibilityState !== 'visible' || Play.running) return;
+    if (Sync.mode === 'local' && tick % 6 !== 0) return;
+    poll();
   }, 5000);
 })();
