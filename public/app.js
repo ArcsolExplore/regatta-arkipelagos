@@ -80,7 +80,7 @@
       case 'Z': s = P(`0,0 ${w},0 ${w / 2},${h / 2}`, FC.y) + P(`0,0 ${w / 2},${h / 2} 0,${h}`, FC.k) + P(`0,${h} ${w / 2},${h / 2} ${w},${h}`, FC.b) + P(`${w},0 ${w},${h} ${w / 2},${h / 2}`, FC.r); break;
       default: s = R(0, 0, w, h, FC.w);
     }
-    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">${s}<polygon points="${outline}" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/></svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">${s}<polygon points="${outline}" fill="none" stroke="rgba(18,50,77,.6)" stroke-width="1.4"/></svg>`;
   }
   $('#brandFlags').innerHTML = flagSVG('R', 30, 20) + flagSVG('A', 30, 20);
 
@@ -88,7 +88,7 @@
   const GAMES = {
     kryss: {
       ...GAME_LOGIC.kryss,
-      title: 'Kryssbanan', flag: 'P', signal: 'Signal P · förberedelsesignal',
+      title: 'Kryssbanan', flag: 'P', signal: 'Signal P: förberedelsesignal',
       unit: 'time', better: 'low',
       pitch: 'Kryssa upp till bojen, runda den och lens hem i mål. Snabbast tid vinner.',
       how: [
@@ -100,7 +100,7 @@
     },
     slalom: {
       ...GAME_LOGIC.slalom,
-      title: 'Skärslalom', flag: 'U', signal: 'Signal U · ni står i begrepp att råka i fara',
+      title: 'Skärslalom', flag: 'U', signal: 'Signal U: ni står i begrepp att råka i fara',
       unit: 'points', better: 'high',
       pitch: 'Full gas mellan skären. Farten ökar hela tiden, och gula bojar ger bonus.',
       how: [
@@ -111,7 +111,7 @@
     },
     fortoj: {
       ...GAME_LOGIC.fortoj,
-      title: 'Förtöj!', flag: 'S', signal: 'Signal S · jag backar med maskin',
+      title: 'Förtöj!', flag: 'S', signal: 'Signal S: jag backar med maskin',
       unit: 'points', better: 'high',
       pitch: 'Fem angöringar mot bryggan. Backa i rätt ögonblick och stanna så nära du vågar.',
       how: [
@@ -123,7 +123,7 @@
     },
     parkera: {
       ...GAME_LOGIC.parkera,
-      title: 'Förtöja 2', short: 'Parkera', flag: 'D', signal: 'Signal D · håll undan, jag manövrerar med svårighet',
+      title: 'Förtöja 2', short: 'Parkera', flag: 'D', signal: 'Signal D: håll undan, jag manövrerar med svårighet',
       unit: 'time', better: 'low',
       pitch: 'Fem hamnmanövrar i olika vind: långsides, förut in, backa in och fler. Snabbast tid vinner, men en enda kontakt underkänner försöket.',
       how: [
@@ -135,7 +135,7 @@
     },
     navigator: {
       ...GAME_LOGIC.navigator,
-      title: 'Navigatören', short: 'Navig', flag: 'N', signal: 'Signal N · nej',
+      title: 'Navigatören', short: 'Navig', flag: 'N', signal: 'Signal N: nej',
       unit: 'time', better: 'low',
       pitch: 'Rita rutten på sjökortet förbi märke 1 och 2 och in i hamn. Snabb penna och kort rutt vinner.',
       how: [
@@ -147,7 +147,7 @@
     },
     fyr: {
       ...GAME_LOGIC.fyr,
-      title: 'Fyrkaraktären', short: 'Fyr', flag: 'L', signal: 'Signal L · stoppa genast',
+      title: 'Fyrkaraktären', short: 'Fyr', flag: 'L', signal: 'Signal L: stoppa genast',
       unit: 'points', better: 'high',
       pitch: 'Fyren blinkar sin karaktär. Blinka tillbaka exakt samma rytm. Tio fyrar, tre liv.',
       how: [
@@ -159,7 +159,7 @@
     },
     tamp: {
       ...GAME_LOGIC.tamp,
-      title: 'Kasta tamp', short: 'Tamp', flag: 'T', signal: 'Signal T · håll undan för mig',
+      title: 'Kasta tamp', short: 'Tamp', flag: 'T', signal: 'Signal T: håll undan för mig',
       unit: 'points', better: 'high',
       pitch: 'Fem kast med förtöjningstampen mot pollaren på bryggan. Vinden tar tag i öglan.',
       how: [
@@ -170,7 +170,7 @@
     },
     grill: {
       ...GAME_LOGIC.grill,
-      title: 'Grillmästaren', short: 'Grill', flag: 'G', signal: 'Signal G · jag behöver lots',
+      title: 'Grillmästaren', short: 'Grill', flag: 'G', signal: 'Signal G: jag behöver lots',
       unit: 'points', better: 'high',
       pitch: 'Sextio sekunder vid klippgrillen. Vänd i rätt stund och servera perfekt stekt på båda sidor.',
       how: [
@@ -181,7 +181,7 @@
     },
     mas: {
       ...GAME_LOGIC.mas,
-      title: 'Måsattacken', short: 'Mås', flag: 'A', signal: 'Signal A · dykare nere, håll undan',
+      title: 'Måsattacken', short: 'Mås', flag: 'A', signal: 'Signal A: dykare nere, håll undan',
       unit: 'points', better: 'high',
       pitch: 'Måsarna vill åt räksmörgåsen. Tryck eller svep bort dem i sextio sekunder, och spara så många räkor du kan.',
       how: [
@@ -192,7 +192,7 @@
     },
     svall: {
       ...GAME_LOGIC.svall,
-      title: 'Svallvågen', short: 'Svall', flag: 'O', signal: 'Signal O · man över bord',
+      title: 'Svallvågen', short: 'Svall', flag: 'O', signal: 'Signal O: man över bord',
       unit: 'points', better: 'high',
       pitch: 'Waxholmsbåten och taxibåtarna passerar. Luta telefonen så att kaffekoppen står kvar på bordet.',
       how: [
@@ -203,7 +203,7 @@
     },
     lots: {
       ...GAME_LOGIC.lots,
-      title: 'Lotsen i dimman', short: 'Lots', flag: 'H', signal: 'Signal H · jag har lots ombord',
+      title: 'Lotsen i dimman', short: 'Lots', flag: 'H', signal: 'Signal H: jag har lots ombord',
       unit: 'time', better: 'low',
       pitch: 'Fyra sekunder att memorera farleden, sedan kommer dimman. Lys efter märkena och lotsa båten fram till fyren.',
       how: [
@@ -489,7 +489,7 @@
     const chip = $('#syncChip');
     const labels = { connecting: 'Ansluter', shared: 'Delad', offline: 'Offline', local: 'Lokal' };
     chip.dataset.state = Sync.mode;
-    $('#syncLabel').textContent = `${labels[Sync.mode]} · omg ${Sync.round.n}`;
+    $('#syncLabel').textContent = `${labels[Sync.mode]}, omgång ${Sync.round.n}`;
     chip.setAttribute('aria-label', `Topplistan: ${labels[Sync.mode]}, omgång ${Sync.round.n}. Visa mer.`);
   }
 
@@ -540,7 +540,7 @@
     const top = h('div', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', { text: 'Ställningen' }), h('a', { class: 'linkish', href: '#topplista', text: 'Hela topplistan' })));
     if (table.length) {
-      top.append(h('ol', { class: 'board' }, table.map((r) => rowEl(r.rank, r.name, `${r.pts} p`, `${r.played} av ${GAME_ORDER.length} spel · ${r.wins} ${r.wins === 1 ? 'seger' : 'segrar'}`, slug(r.name) === me && !!name))));
+      top.append(h('ol', { class: 'board' }, table.map((r) => rowEl(r.rank, r.name, `${r.pts} p`, `${r.played} av ${GAME_ORDER.length} spel, ${r.wins} ${r.wins === 1 ? 'seger' : 'segrar'}`, slug(r.name) === me && !!name))));
     } else {
       top.append(h('div', { class: 'empty' }, h('span', { text: `Ingen har seglat i omgång ${Sync.round.n} än. Första resultatet hamnar här.` })));
     }
@@ -564,7 +564,7 @@
     root.replaceChildren();
     const name = getName();
     const me = slug(name);
-    const startedTxt = Sync.round.startedAt ? ' · startad ' + new Date(Sync.round.startedAt).toLocaleString('sv-SE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    const startedTxt = Sync.round.startedAt ? ', startad ' + new Date(Sync.round.startedAt).toLocaleString('sv-SE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 
     root.append(h('div', { class: 'hero' }, h('span', { class: 'eyebrow', text: `Omgång ${Sync.round.n}${startedTxt}` }), h('h1', { text: 'Topplista' })));
 
@@ -582,7 +582,7 @@
     const list = h('ol', { class: 'board' });
     if (boardTab === 'regatta') {
       const t = regattaTable();
-      t.forEach((r) => list.append(rowEl(r.rank, r.name, `${r.pts} p`, `${r.played} av ${GAME_ORDER.length} spel · ${r.wins} ${r.wins === 1 ? 'seger' : 'segrar'}`, slug(r.name) === me && !!name)));
+      t.forEach((r) => list.append(rowEl(r.rank, r.name, `${r.pts} p`, `${r.played} av ${GAME_ORDER.length} spel, ${r.wins} ${r.wins === 1 ? 'seger' : 'segrar'}`, slug(r.name) === me && !!name)));
       root.append(t.length ? list : emptyBoard());
       root.append(h('p', { class: 'note', text: 'Placeringen i varje spel ger poäng: 10, 8, 6, 5, 4, 3, 2 och 1. Lika resultat ger lika poäng.' }));
     } else {
@@ -1097,7 +1097,7 @@
     const p = $('#introPanel');
     const go = h('button', { class: 'btn', type: 'button', onclick: () => { p.hidden = true; if (g.tilt) tiltOn(); run(); } }, 'Kör');
     p.replaceChildren(h('div', { class: 'panel' },
-      h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: flagSVG(g.flag, 48, 32) }), h('div', null, h('div', { class: 'signal', text: `Omgång ${Sync.round.n} · samma bana för alla` }), h('h2', { text: g.title }))),
+      h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: flagSVG(g.flag, 48, 32) }), h('div', null, h('div', { class: 'signal', text: `Omgång ${Sync.round.n}, samma bana för alla` }), h('h2', { text: g.title }))),
       h('ul', { class: 'how' }, g.how.map(([k, t]) => h('li', null, h('b', { text: k }), h('span', { text: t })))),
       h('div', { class: 'actions' }, go, h('button', { class: 'btn ghost', type: 'button', onclick: quitGame }, 'Tillbaka'))));
     p.hidden = false;

@@ -96,7 +96,7 @@
     cleanup = null;
     $t.className = '';
     $title.textContent = 'Tickande sjömina';
-    $sub.textContent = 'Runt bordet · en telefon';
+    $sub.textContent = 'Runt bordet, en telefon';
     const seg = h('div', { class: 'seg two', role: 'group', 'aria-label': 'Läge' },
       [['kategori', 'Kategori'], ['bokstav', 'Kategori + bokstav']].map(([k, l]) => h('button', { type: 'button', 'aria-pressed': String(M.mode === k), onclick: () => { M.mode = k; minaSetup(); } }, l)));
     $body.replaceChildren(
@@ -197,7 +197,7 @@
     cleanup = null;
     $t.className = '';
     $title.textContent = 'Pannkortet';
-    $sub.textContent = 'Runt bordet · en telefon';
+    $sub.textContent = 'Runt bordet, en telefon';
     if (!P.deck) P.deck = PANNA_DECKS[0].id;
     const ruleBox = h('input', { type: 'checkbox', id: 'pannaRule' });
     ruleBox.checked = P.rule;
@@ -210,7 +210,7 @@
         h('li', null, h('b', { text: '3' }), h('span', { text: 'Så många ord ni hinner på 60 sekunder.' }))),
       h('div', { class: 'cat-grid' }, PANNA_DECKS.map((d) => h('button', { class: 'cat' + (P.deck === d.id ? ' on' : ''), type: 'button', 'aria-pressed': String(P.deck === d.id), onclick: () => { P.deck = d.id; pannaSetup(); } },
         h('span', { svg: RA().flagSVG(d.flag, 36, 24) }), h('b', { text: d.name }), h('span', { text: `${d.words.length} ord` })))),
-      h('label', { class: 'check', for: 'pannaRule' }, ruleBox, h('span', null, h('b', { text: 'Med kortregel' }), h('span', { class: 'muted', text: ' · ett kort ur Begränsning bestämmer hur ni får beskriva' }))),
+      h('label', { class: 'check', for: 'pannaRule' }, ruleBox, h('span', null, h('b', { text: 'Med kortregel' }), h('span', { class: 'muted', text: ': ett kort ur Begränsning bestämmer hur ni får beskriva' }))),
       h('button', { class: 'btn big', type: 'button', onclick: pannaStart }, 'Starta'));
   }
   function nextWord() {
@@ -345,7 +345,7 @@
   /* ---------- Bordets sektion ---------- */
   function section() {
     const card = (title, flag, text, onclick, btn) => h('article', { class: 'game' },
-      h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: RA().flagSVG(flag, 54, 36) }), h('div', null, h('div', { class: 'signal', text: 'En telefon · hela bordet' }), h('h3', { text: title }))),
+      h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: RA().flagSVG(flag, 54, 36) }), h('div', null, h('div', { class: 'signal', text: 'En telefon, hela bordet' }), h('h3', { text: title }))),
       h('p', { text }),
       h('div', { class: 'game-foot' }, h('span'), h('button', { class: 'btn', type: 'button', onclick }, btn)));
     return h('div', { class: 'section' },

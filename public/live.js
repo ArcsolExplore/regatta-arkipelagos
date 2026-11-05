@@ -9,19 +9,19 @@
 
   const LG = {
     start: {
-      title: 'Startlinjen', flag: 'I', signal: 'Flagga I · tjuvstart kostar',
+      title: 'Startlinjen', flag: 'I', signal: 'Flagga I: tjuvstart kostar',
       pitch: 'Nedräkningen försvinner fyra sekunder före skottet. Tryck så nära skottet du vågar, men inte före.',
       rules: ['Alla ser samma nedräkning, synkad mot servern.', 'Vid fyra sekunder kvar släcks siffrorna. Räkna själv.', 'Tryck KÖR när du tror att skottet går. Före skottet är tjuvstart.', 'Närmast efter skottet vinner. Din bästa start sparas i topplistan.'],
       startLabel: 'Starta loppet', team: false,
     },
     drag: {
-      title: 'Dragkampen', flag: 'Z', signal: 'Signal Z · jag behöver bogserbåt',
+      title: 'Dragkampen', flag: 'Z', signal: 'Signal Z: jag behöver bogserbåt',
       pitch: 'Rött mot blått. Tryck så fort ni kan, knuten dras mot det lag som trycker mest per person.',
       rules: ['Delas upp i rött och blått lag. Byt lag innan start.', 'Tryck på DRA så snabbt du kan när det börjar.', 'Lagens tryck räknas per person, så olika stora lag blir rättvist.', 'Först att dra knuten hela vägen vinner. Annars leder laget när 40 sekunder gått.'],
       startLabel: 'Starta dragkampen', team: true,
     },
     sjo: {
-      title: 'Sjöslaget', flag: 'B', signal: 'Signal B · farligt gods ombord',
+      title: 'Sjöslaget', flag: 'B', signal: 'Signal B: farligt gods ombord',
       pitch: 'Lag mot lag på ett hemligt rutnät. Laget som har turen skjuter, en träff ger ett skott till.',
       rules: ['Två lag, var sin flotta på 8 × 8 rutor: ett fyrskepp, två treskepp och två tvåskepp.', 'Servern placerar flottorna. Ert lag ser bara sin egen.', 'Den som först trycker i ert lag skjuter. Prata ihop er.', 'Träff ger ett skott till. Sänk hela fiendeflottan för att vinna.'],
       startLabel: 'Starta sjöslaget', team: true,
@@ -271,7 +271,7 @@
     const item = (p) => h('li', { class: 'pl' + (p.id === me ? ' me' : '') }, h('span', { text: p.name }), p.id === me ? h('span', { class: 'tag', text: 'du' }) : null);
     if (!G.team) return h('ul', { class: 'pls' }, r.players.map(item));
     const col = (t) => h('div', { class: `team team-${t}` },
-      h('h3', { text: `${TEAM[t]} lag · ${r.players.filter((p) => p.team === t).length}` }),
+      h('h3', { text: `${TEAM[t]} lag (${r.players.filter((p) => p.team === t).length})` }),
       h('ul', { class: 'pls' }, r.players.filter((p) => p.team === t).map(item)));
     return h('div', { class: 'teams' }, col('red'), col('blue'));
   }
@@ -285,7 +285,7 @@
       h('p', { class: 'note', text: 'De andra öppnar appen, går till Tillsammans och skriver koden. Eller dela länken.' }),
       h('button', { class: 'btn ghost small', type: 'button', onclick: share }, 'Dela länk')));
     if (r.race > 0) out.push(resultBlock(r));
-    out.push(h('div', { class: 'section' }, h('h2', { text: `Spelare · ${r.players.length}` }), playersBlock(r)));
+    out.push(h('div', { class: 'section' }, h('h2', { text: `Spelare (${r.players.length})` }), playersBlock(r)));
     const me = meP();
     const acts = h('div', { class: 'actions' });
     if (G.team && me) {
@@ -477,7 +477,7 @@
       banner,
       h('div', { class: 'sjo-head' }, h('h3', { text: 'Fiendens vatten' }), h('span', { class: 'note', text: `${left(enemy)} av ${r.fleet.length} skepp kvar` })),
       target,
-      h('div', { class: 'sjo-head' }, h('h3', { text: `Vår flotta · ${TEAM[team].toLowerCase()} laget` }), h('span', { class: 'note', text: `${left(team)} av ${r.fleet.length} kvar` })),
+      h('div', { class: 'sjo-head' }, h('h3', { text: `Vår flotta, ${TEAM[team].toLowerCase()} laget` }), h('span', { class: 'note', text: `${left(team)} av ${r.fleet.length} kvar` })),
       fleet,
     ];
   }
@@ -552,7 +552,7 @@
             h('div', null, h('div', { class: 'signal', text: g.signal }), h('h3', { text: g.title }))),
           h('p', { text: g.pitch }),
           h('div', { class: 'game-foot' },
-            h('span', { class: 'muted', text: g.team ? 'Lag mot lag · 2–24 spelare' : 'Alla mot alla · 2–24 spelare' }),
+            h('span', { class: 'muted', text: g.team ? 'Lag mot lag, 2–24 spelare' : 'Alla mot alla, 2–24 spelare' }),
             h('button', { class: 'btn', type: 'button', onclick: () => create(id) }, 'Skapa rum'))))));
     }
     // Ett rum man nyss var med i går att komma tillbaka till.

@@ -52,6 +52,8 @@ public/          static site (no build step)
   live.js        live rooms: Startlinjen, Dragkampen, Sjöslaget
   table.js       Tickande sjömina and Pannkortet
   app.js         views, leaderboard sync, game engine, card deck
+  chart.svg      sea-chart background (islands, shoals, depth contours)
+  fonts/         TeX Gyre Adventor and Schola (GUST Font License), self-hosted so they load offline
 api/state.js     serverless leaderboard (GET state, POST score / new round)
 api/room.js      serverless live rooms (create/join, races, taps, pulls, shots)
 vercel.json      serves public/ as the site
