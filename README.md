@@ -1,6 +1,6 @@
 # Regatta Arkipelagos
 
-Companion app for the Regatta Arkipelagos party game. It has eight solo arcade games everyone plays on their own phone, three live games played together in a room, two pass-the-phone table games, a shared leaderboard, and a challenge-card deck with a timer. The interface is in Swedish.
+Companion app for the Regatta Arkipelagos party game. It has eleven solo arcade games everyone plays on their own phone, three live games played together in a room, two pass-the-phone table games, a shared leaderboard, and a challenge-card deck with a timer. The interface is in Swedish.
 
 ## Solo games (the Regatta)
 
@@ -14,6 +14,9 @@ Companion app for the Regatta Arkipelagos party game. It has eight solo arcade g
 | **Fyrkaraktären** | L (stop instantly) | A lighthouse shows a real light characteristic (Fl, LFl, Iso, Fl(2), Mo(A), Q(6)+LFl and others). Hold to flash it back. Count, short/long and rhythm must match. Ten lights, three lives. | Points (max 1000) |
 | **Kasta tamp** | T (keep clear of me) | Five swipe throws of a mooring line at a bollard, with crosswind. Swipe speed sets distance, direction sets the side. | Points (max 500) |
 | **Grillmästaren** | G (I require a pilot) | 60 s at a grill with six hot and cool spots. Tap to flip, hold to serve. Both sides perfect gives 100, with a bonus for streaks. | Points, highest wins |
+| **Måsattacken** | A (diver down, keep clear) | 60 s defending a shrimp sandwich from gulls. Tap or swipe a gull to shoo it; the dark trut needs two hits. Quick chains multiply points up to ×4, and each shrimp left at the end gives 25. | Points, highest wins |
+| **Svallvågen** | O (man overboard) | Passing boats send wakes through the cockpit. Tilt the phone (device orientation, iOS asks for permission) to keep the coffee cup level; without a sensor, drag like a joystick. Jerks spill coffee, and a hard hit against the rim tips the cup. | Coffee kept, second by second (max 1000) |
+| **Lotsen i dimman** | H (I have a pilot on board) | Memorise the fairway for 4 s, then steer through fog past the blinking marks to the lighthouse. The fog horn clears the fog briefly for +2 s; grounding (exact hull test) costs +5 s. | Time, lowest wins |
 
 ## Live games (Tillsammans)
 
@@ -43,6 +46,7 @@ public/          static site (no build step)
   styles.css
   logic.js       game logic: pure create/update/draw functions
   games-extra.js Navigatören, Fyrkaraktären, Kasta tamp, Grillmästaren (same interface)
+  games-more.js  Måsattacken, Svallvågen, Lotsen i dimman
   cards.js       the 11 challenge-card categories
   words.js       categories and word decks for the table games
   live.js        live rooms: Startlinjen, Dragkampen, Sjöslaget

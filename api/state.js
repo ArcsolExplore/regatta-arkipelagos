@@ -19,6 +19,9 @@ const GAMES = {
   fyr: { better: 'high', min: 0, max: 1000 },
   tamp: { better: 'high', min: 0, max: 500 },
   grill: { better: 'high', min: 0, max: 6000 },
+  mas: { better: 'high', min: 0, max: 10000 },
+  svall: { better: 'high', min: 0, max: 1000 },
+  lots: { better: 'low', min: 5000, max: 900000 },
   // Startlinjen spelas live; bästa start i ms efter skottet. Räknas inte i Regattan.
   start: { better: 'low', min: 0, max: 5000 },
 };

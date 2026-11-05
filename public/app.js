@@ -64,6 +64,8 @@
       case 'D': s = R(0, 0, w, h, FC.y) + R(0, h / 4, w, h / 2, FC.b); break;
       case 'C': [FC.b, FC.w, FC.r, FC.w, FC.b].forEach((c, i) => { s += R(0, (i * h) / 5, w, h / 5 + 0.2, c); }); break;
       case 'G': for (let i = 0; i < 6; i++) s += R((i * w) / 6, 0, w / 6 + 0.2, h, i % 2 ? FC.b : FC.y); break;
+      case 'H': s = R(0, 0, w / 2, h, FC.w) + R(w / 2, 0, w / 2, h, FC.r); break;
+      case 'O': s = P(`0,0 ${w},0 ${w},${h}`, FC.r) + P(`0,0 ${w},${h} 0,${h}`, FC.y); break;
       case 'I': s = R(0, 0, w, h, FC.y) + `<circle cx="${w / 2}" cy="${h / 2}" r="${h * 0.28}" fill="${FC.k}"/>`; break;
       case 'J': s = R(0, 0, w, h, FC.b) + R(0, h / 3, w, h / 3, FC.w); break;
       case 'K': s = R(0, 0, w / 2, h, FC.y) + R(w / 2, 0, w / 2, h, FC.b); break;
@@ -177,19 +179,54 @@
         ['Värme', 'Lågorna under varje plats visar hur varmt det är. Brinner det för länge blir det minuspoäng.'],
       ],
     },
+    mas: {
+      ...GAME_LOGIC.mas,
+      title: 'Måsattacken', short: 'Mås', flag: 'A', signal: 'Signal A · dykare nere, håll undan',
+      unit: 'points', better: 'high',
+      pitch: 'Måsarna vill åt räksmörgåsen. Tryck eller svep bort dem i sextio sekunder, och spara så många räkor du kan.',
+      how: [
+        ['Schas', 'Tryck på en mås eller svep över den. Flera i snabb följd ger upp till fyra gånger poängen.'],
+        ['Truten', 'Den stora mörka truten behöver två tryck. Dykande måsar kommer snabbt och rakt.'],
+        ['Räkorna', 'Når en mås smörgåsen tar den en räka. Varje räka kvar när tiden är slut ger 25 poäng. Tar alla tio slut är rundan över.'],
+      ],
+    },
+    svall: {
+      ...GAME_LOGIC.svall,
+      title: 'Svallvågen', short: 'Svall', flag: 'O', signal: 'Signal O · man över bord',
+      unit: 'points', better: 'high',
+      pitch: 'Waxholmsbåten och taxibåtarna passerar. Luta telefonen så att kaffekoppen står kvar på bordet.',
+      how: [
+        ['Luta', 'Telefonen är bordet. Luta mot svallet så att bordet hålls plant. Utan lutningssensor: dra med fingret som en spak.'],
+        ['Svall', 'En gul pil visar varifrån nästa svall kommer. Vattenpasset nere till vänster visar hur bordet lutar just nu.'],
+        ['Kaffe', 'Ryck och smällar i kanten spiller. Slår koppen i för hårt välter den. Poängen räknas på hur mycket kaffe du har kvar, sekund för sekund.'],
+      ],
+    },
+    lots: {
+      ...GAME_LOGIC.lots,
+      title: 'Lotsen i dimman', short: 'Lots', flag: 'H', signal: 'Signal H · jag har lots ombord',
+      unit: 'time', better: 'low',
+      pitch: 'Fyra sekunder att memorera farleden, sedan kommer dimman. Lys efter märkena och lotsa båten fram till fyren.',
+      how: [
+        ['Minns', 'Kartan syns i fyra sekunder. Ta in skären och vägen förbi märke 1 och 2 till fyren.'],
+        ['◀ ▶', 'Båten går med jämn fart. Du styr bara. Märkena blinkar genom dimman: rött en gång, grönt två gånger.'],
+        ['TUTA', 'Mistluren lättar dimman en kort stund men kostar 2 sekunder.'],
+        ['Grund', 'Skrovet mot sten ger 5 sekunder extra, och båten backas en bit.'],
+      ],
+    },
     // Startlinjen spelas live i ett rum; här finns bara det som topplistan behöver.
     start: {
       id: 'start', title: 'Startlinjen', short: 'Start', flag: 'P', unit: 'ms', better: 'low', live: true,
     },
   };
-  // Regattan räknar de åtta solospelen. Startlinjen har en egen lista men ger inga Regatta-poäng.
-  const GAME_ORDER = ['kryss', 'slalom', 'fortoj', 'parkera', 'navigator', 'fyr', 'tamp', 'grill'];
+  // Regattan räknar de elva solospelen. Startlinjen har en egen lista men ger inga Regatta-poäng.
+  const GAME_ORDER = ['kryss', 'slalom', 'fortoj', 'parkera', 'navigator', 'fyr', 'tamp', 'grill', 'mas', 'svall', 'lots'];
   const BOARD_ORDER = [...GAME_ORDER, 'start'];
   const isBetter = (g, a, b) => (GAMES[g].better === 'low' ? a < b : a > b);
   // Samma gränser som servern. Ett resultat utanför dem sparas aldrig, varken där eller här.
   const RANGE = {
     kryss: [3000, 900000], slalom: [0, 200000], fortoj: [0, 500], parkera: [5000, 1800000],
     navigator: [3000, 1200000], fyr: [0, 1000], tamp: [0, 500], grill: [0, 6000], start: [0, 5000],
+    mas: [0, 10000], svall: [0, 1000], lots: [5000, 900000],
   };
   const inRange = (g, v) => Number.isFinite(v) && ((g === 'parkera' && v === PK.DNF) || (RANGE[g] && v >= RANGE[g][0] && v <= RANGE[g][1]));
   // Ett underkänt försök sparas som en tid som alltid är sämst, så det aldrig slår en giltig tid.
@@ -472,7 +509,7 @@
     root.append(
       h('div', { class: 'hero' },
         h('span', { class: 'eyebrow', text: `Omgång ${Sync.round.n}` }),
-        h('h1', { text: 'Åtta spel. En topplista.' }),
+        h('h1', { text: 'Elva spel. En topplista.' }),
         h('p', { class: 'lede', text: 'Alla spelar på sin egen telefon. Ditt bästa resultat i varje spel räknas, och placeringarna ger poäng i Regattan. Vill ni mötas på riktigt finns livespelen och spelen runt bordet.' })),
       h('div', { class: 'player' },
         name
@@ -875,6 +912,11 @@
       bindDrag(rudTrack, 'x', (v) => { Play.input.rudder = Math.abs(v) < 0.1 ? 0 : v; });
       bindDrag(thrTrack, 'y', (v) => { Play.input.throttle = Math.abs(v) < 0.14 ? 0 : v; });
       paintHelm();
+    } else if (type === 'lrb') {
+      ctl.append(h('div', { class: 'ctl-lrb' },
+        h('button', { class: 'pad', type: 'button', 'data-k': 'left', 'aria-label': 'Styr vänster' }, '◀'),
+        h('button', { class: 'pad act', type: 'button', 'data-k': 'boost' }, Play.game.actionLabel || 'OK'),
+        h('button', { class: 'pad', type: 'button', 'data-k': 'right', 'aria-label': 'Styr höger' }, '▶')));
     } else if (type === 'draw') {
       ctl.append(h('div', { class: 'ctl-draw' },
         h('p', { class: 'ctl-hint', text: Play.game.hint || '' }),
@@ -916,7 +958,7 @@
       else r = true;
       hold = true;
     }
-    if (g.controls === 'lr') {
+    if (g.controls === 'lr' || g.controls === 'lrb') {
       Play.input.cl = l;
       Play.input.cr = r;
     } else if (g.controls === 'hold') {
@@ -994,9 +1036,36 @@
   });
 
   function resetInput() {
-    Object.assign(Play.input, { left: false, right: false, hold: false, boostPressed: false, cl: false, cr: false, ch: false, rudder: 0, throttle: 0, events: [] });
+    Object.assign(Play.input, { left: false, right: false, hold: false, boostPressed: false, cl: false, cr: false, ch: false, rudder: 0, throttle: 0, events: [], tiltOk: false, tiltX: 0, tiltY: 0 });
     Object.assign(keys, { left: false, right: false, hold: false });
     canvasPointers.clear();
+  }
+
+  // Lutning för spel med tilt: true. Nollan sätts där telefonen hålls när spelet börjar.
+  const Tilt = { base: null, on: false };
+  function onOrient(e) {
+    if (e.beta == null || e.gamma == null || !Play.running) return;
+    const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    const b = e.beta, g = e.gamma;
+    let x = g, y = b;
+    if (ang === 90) { x = b; y = -g; } else if (ang === -90 || ang === 270) { x = -b; y = g; } else if (ang === 180) { x = -g; y = -b; }
+    if (!Tilt.base) Tilt.base = [x, y];
+    Play.input.tiltX = clamp((x - Tilt.base[0]) / 25, -1.5, 1.5);
+    Play.input.tiltY = clamp((y - Tilt.base[1]) / 25, -1.5, 1.5);
+    Play.input.tiltOk = true;
+  }
+  function tiltOn() {
+    Tilt.base = null;
+    // iOS kräver att man ber om lov, och det måste ske i själva trycket på Kör.
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') DeviceOrientationEvent.requestPermission().catch(() => {});
+    } catch (e) { /* inget stöd */ }
+    if (!Tilt.on) window.addEventListener('deviceorientation', onOrient);
+    Tilt.on = true;
+  }
+  function tiltOff() {
+    if (Tilt.on) window.removeEventListener('deviceorientation', onOrient);
+    Tilt.on = false;
   }
 
   function startGame(id) {
@@ -1026,7 +1095,7 @@
 
   function showIntro(g) {
     const p = $('#introPanel');
-    const go = h('button', { class: 'btn', type: 'button', onclick: () => { p.hidden = true; run(); } }, 'Kör');
+    const go = h('button', { class: 'btn', type: 'button', onclick: () => { p.hidden = true; if (g.tilt) tiltOn(); run(); } }, 'Kör');
     p.replaceChildren(h('div', { class: 'panel' },
       h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: flagSVG(g.flag, 48, 32) }), h('div', null, h('div', { class: 'signal', text: `Omgång ${Sync.round.n} · samma bana för alla` }), h('h2', { text: g.title }))),
       h('ul', { class: 'how' }, g.how.map(([k, t]) => h('li', null, h('b', { text: k }), h('span', { text: t })))),
@@ -1060,6 +1129,7 @@
   });
 
   function stopGame() {
+    tiltOff();
     Play.running = false;
     cancelAnimationFrame(Play.raf);
     releaseWakeLock();
