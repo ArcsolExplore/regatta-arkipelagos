@@ -15,6 +15,12 @@ const GAMES = {
   fortoj: { better: 'high', min: 0, max: 500 },
   // Förtöja 2: tid i ms. Ett underkänt försök (kontakt) skickas som DNF och rankas alltid sist.
   parkera: { better: 'low', min: 5000, max: 1800000, dnf: 9999000 },
+  navigator: { better: 'low', min: 3000, max: 1200000 },
+  fyr: { better: 'high', min: 0, max: 1000 },
+  tamp: { better: 'high', min: 0, max: 500 },
+  grill: { better: 'high', min: 0, max: 6000 },
+  // Startlinjen spelas live; bästa start i ms efter skottet. Räknas inte i Regattan.
+  start: { better: 'low', min: 0, max: 5000 },
 };
 
 const headers = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
