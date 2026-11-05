@@ -259,7 +259,7 @@ const kryss = {
     for (let side = 0; side < 2; side++) for (let y = -30; y <= 760; y += 24) shore[side].push({ y, w: 10 + r() * 10 });
     const [camX, camY] = kryCamClamp(200, 668);
     return {
-      t: 0, x: 200, y: 668, a: -Math.PI / 2 - 0.78, speed: 0, phase: 0, raceT: 0, camX, camY,
+      t: 0, x: 200, y: 668, a: -Math.PI / 2 - 0.78, speed: 0, phase: 0, raceT: 0, camX, camY, wox: 0, woy: 0,
       ph1: r() * TAU, ph2: r() * TAU, wa: Math.PI / 2,
       prevSide: 0, tackT: 0, lockT: 0, penT: 0, msg: '', msgT: 0, msgC: '#f5c225',
       sweep: 0, prevAng: null, above: false, wake: [], wakeT: 0, perfect: 0, tacks: 0,
@@ -274,6 +274,9 @@ const kryss = {
 
     // Vinden vrider sig lite fram och tillbaka – samma mönster för alla i omgången.
     s.wa = Math.PI / 2 + 0.2 * Math.sin(s.t * 0.19 + s.ph1) + 0.07 * Math.sin(s.t * 0.61 + s.ph2);
+    // Krusningarna flyttas med vinden steg för steg, så en vindvridning aldrig får dem att svepa bakåt.
+    s.wox += Math.cos(s.wa) * 48 * dt;
+    s.woy += Math.sin(s.wa) * 48 * dt;
 
     const racing = s.phase < 3;
     const steer = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
@@ -419,10 +422,9 @@ const kryss = {
     ctx.strokeStyle = 'rgba(220,240,255,.17)';
     ctx.lineWidth = 1;
     ctx.lineCap = 'round';
-    const off = s.t * 48;
     for (const k of s.streaks) {
-      const x = mod(k.x + wx * off + 30, 460) - 30;
-      const y = mod(k.y + wy * off + 30, 780) - 30;
+      const x = mod(k.x + s.wox + 30, 460) - 30;
+      const y = mod(k.y + s.woy + 30, 780) - 30;
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + wx * k.l, y + wy * k.l);
@@ -1009,7 +1011,7 @@ const fortoj = {
    ===================================================================== */
 // HOLD: hur länge båten ska ligga rätt innan tamparna går i land. PULL: hur länge tamparna drar in den.
 // NEAR: största avstånd (m) mellan skrov och brygga/kaj för att räknas som framme. SLOW: största fart (m/s).
-const PK = { W: 36, H: 64, K: 10, L: 8, B: 3, DNF: 9999000, HOLD: 0.25, PULL: 0.9, NEAR_SIDE: 1.0, NEAR_END: 1.3, SLOW: 0.6, TURN: 0.3, ALIGN: 15 };
+const PK = { W: 36, H: 64, K: 10, L: 8, B: 3, DNF: 9999000, HOLD: 0.25, PULL: 0.9, NEAR_SIDE: 1.6, NEAR_END: 1.3, SLOW: 0.7, TURN: 0.3, ALIGN: 15 };
 const PK_TYPES = ['langsides', 'forut', 'backa', 'ficka', 'inlopp'];
 const PK_INFO = {
   langsides: { name: 'Långsides', hint: 'Lägg till långsides mot bryggan, i luckan mellan båtarna.', wind: [2, 4], label: 'LÅNGSIDES' },
@@ -1103,8 +1105,8 @@ function pkBuild(type, seed, index, windFrom) {
     };
     chain(gy - 0.6, -1, tight ? 3 : 1);
     chain(gy + gapLen + 0.6, 1, tight ? 3 : 1);
-    // Båtplatsen: luckan mellan grannarna, ut till 5,6 m från bryggkanten.
-    berth = { x0: faceX - 5.6, x1: faceX - 0.02, y0: gy + 0.05, y1: gy + gapLen - 0.05 };
+    // Rutan är exakt godkännandezonen: ligger hela båten i den är den nära nog bryggan.
+    berth = { x0: faceX - PK.NEAR_SIDE - PK.B, x1: faceX - 0.02, y0: gy + 0.05, y1: gy + gapLen - 0.05 };
     face = { axis: 'x', at: faceX, toward: 1 };
     head = 'vert';
     addRect(0.8, 10, 4.2, 50, 'dock');
@@ -1141,8 +1143,8 @@ function pkBuild(type, seed, index, windFrom) {
       addBoat(slotC(k) + jit, 6.35 + L / 2, bowIn ? UP : DOWN, L, 3.0);
     }
     const tx = slotC(kt);
-    // Båtplatsen: mellan bommarnas insidor, från kajen till strax utanför bommarna.
-    berth = { x0: tx - 2.48, x1: tx + 2.48, y0: 6.02, y1: 6 + boomLen + 0.8 };
+    // Rutan är exakt godkännandezonen: mellan bommarna och så långt in att fören (eller aktern) är nära kajen.
+    berth = { x0: tx - 2.48, x1: tx + 2.48, y0: 6.02, y1: 6 + PK.NEAR_END + PK.L };
     face = { axis: 'y', at: 6, toward: -1 };
     head = type === 'backa' ? 'down' : 'up';
     if (type === 'inlopp') {
@@ -1205,10 +1207,10 @@ function pkPhysics(b, rud, thr, w, dt, push) {
   const px = push ? push.x : 0, py = push ? push.y : 0;
   const aSurge = (wx * c + wy * sn) * 0.3 + (px * c + py * sn);
   const aSway = -wx * sn + wy * c + (-px * sn + py * c);
-  const thrust = thr >= 0 ? thr * 0.6 : thr * 0.42;
+  const thrust = thr >= 0 ? thr * 1.0 : thr * 0.75;
 
   const eu = Math.exp(-0.12 * dt);
-  b.u = b.u * eu + ((thrust + aSurge - 0.06 * b.u * Math.abs(b.u)) / 0.12) * (1 - eu);
+  b.u = b.u * eu + ((thrust + aSurge - 0.05 * b.u * Math.abs(b.u)) / 0.12) * (1 - eu);
 
   // Sidmotståndet växer med farten: ett skrov som går framåt greppar vattnet bättre.
   const kv = 1.3 + 1.0 * Math.abs(b.u);
@@ -1217,11 +1219,11 @@ function pkPhysics(b, rud, thr, w, dt, push) {
 
   // Drev: propellern vrids med ratten, så styrkraften kommer både från farten och från
   // propellerns egen ström, framåt såväl som bakåt. Back ger lite sidverkan.
-  const rudder = rud * 0.16 * (b.u + 1.6 * thr);
+  const rudder = rud * 0.24 * (b.u + 1.6 * thr);
   const walk = thr < 0 ? -0.05 * thr : 0;
   const windTurn = (0.0012 * w.ws * w.ws * Math.sin(angDiff(Math.atan2(w.dy, w.dx), b.h))) / (1 + 1.2 * Math.abs(b.u));
-  const er = Math.exp(-1.0 * dt);
-  b.r = b.r * er + (rudder + walk + windTurn - 0.5 * b.r * Math.abs(b.r)) * (1 - er);
+  const er = Math.exp(-1.6 * dt);
+  b.r = b.r * er + ((rudder + walk + windTurn - 0.5 * b.r * Math.abs(b.r)) / 1.6) * (1 - er);
 
   const xp = 0.22 * PK.L * clamp(b.u / 0.6, -1, 1);
   const vc = b.v - b.r * xp; // sidfarten i båtens mitt, med vridpunkten förut eller akterut
@@ -1343,7 +1345,7 @@ const parkera = {
     const r = rng(seed ^ 0x5eed);
     const streaks = [];
     for (let i = 0; i < 70; i++) streaks.push({ x: r() * PK.W, y: r() * PK.H, l: 0.6 + r() * 0.8 });
-    const s = { scen, i: 0, phase: 'intro', phaseT: 0, t: 0, scenT: 0, total: 0, times: [], b: null, rud: 0, thr: 0, held: 0, inBerth: false, aligned: false, ready: false, gap: Infinity, tip: '', pull: null, pullT: 0, hit: null, bubbles: [], streaks, msg: '', msgT: 0, msgC: '#f5c225' };
+    const s = { scen, i: 0, phase: 'intro', phaseT: 0, t: 0, scenT: 0, total: 0, times: [], b: null, rud: 0, thr: 0, held: 0, inBerth: false, aligned: false, ready: false, gap: Infinity, tip: '', pull: null, pullT: 0, hit: null, bubbles: [], streaks, wox: 0, woy: 0, msg: '', msgT: 0, msgC: '#f5c225' };
     parkera.startScen(s);
     return s;
   },
@@ -1396,12 +1398,16 @@ const parkera = {
     s.bubbles = s.bubbles.filter((p) => p.life > 0);
     const S = s.scen[Math.min(s.i, s.scen.length - 1)];
     const b = s.b;
+    // Vindkrusningarna förflyttas med den sträcka vinden faktiskt blåst, så de aldrig hoppar bakåt.
+    const wNow = pkWind(S, s.scenT);
+    s.wox += wNow.dx * wNow.ws * 0.9 * dt;
+    s.woy += wNow.dy * wNow.ws * 0.9 * dt;
 
     if (s.phase === 'intro') {
       if (s.phaseT > 2.4) {
         s.phase = 'run';
         s.phaseT = 0;
-        b.u = 1.6; // båten kommer in med fart
+        b.u = 2.2; // båten kommer in med fart
       }
       return;
     }
@@ -1436,8 +1442,8 @@ const parkera = {
     s.total += dt;
     const rudIn = inp.left ? -1 : inp.right ? 1 : clamp(inp.rudder || 0, -1, 1);
     const thrIn = clamp(inp.throttle || 0, -1, 1);
-    s.rud += clamp(rudIn - s.rud, -2.2 * dt, 2.2 * dt);
-    s.thr += clamp(thrIn - s.thr, -1.4 * dt, 1.4 * dt);
+    s.rud += clamp(rudIn - s.rud, -4 * dt, 4 * dt);
+    s.thr += clamp(thrIn - s.thr, -3 * dt, 3 * dt);
 
     // Nederkanten är öppet vatten: en mjuk ström skjuter tillbaka båten i stället för att stoppa den.
     const over = b.y - (PK.H - 3);
@@ -1494,11 +1500,10 @@ const parkera = {
     ctx.strokeStyle = `rgba(220,240,255,${0.08 + w.ws * 0.012})`;
     ctx.lineWidth = 0.12;
     ctx.lineCap = 'round';
-    const off = s.t * w.ws * 0.9;
     const len = 0.5 + w.ws * 0.12;
     for (const k of s.streaks) {
-      const x = mod(k.x + w.dx * off, PK.W);
-      const y = mod(k.y + w.dy * off, PK.H);
+      const x = mod(k.x + s.wox, PK.W);
+      const y = mod(k.y + s.woy, PK.H);
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + w.dx * len * k.l, y + w.dy * len * k.l);
@@ -1509,15 +1514,8 @@ const parkera = {
     const T = S.berth, F = S.face;
     const docking = s.phase === 'lines' || s.phase === 'moored';
     const laid = (s.inBerth && s.aligned) || docking;
-    ctx.fillStyle = laid ? 'rgba(76,195,138,.16)' : 'rgba(245,194,37,.07)';
+    ctx.fillStyle = s.ready || docking ? 'rgba(76,195,138,.32)' : laid ? 'rgba(76,195,138,.18)' : 'rgba(245,194,37,.12)';
     ctx.fillRect(T.x0, T.y0, T.x1 - T.x0, T.y1 - T.y0);
-    ctx.fillStyle = s.ready || docking ? 'rgba(76,195,138,.32)' : 'rgba(245,194,37,.14)';
-    if (F.axis === 'x') {
-      const zx = F.toward > 0 ? F.at - PK.NEAR_SIDE - PK.B : F.at;
-      ctx.fillRect(zx, T.y0, PK.NEAR_SIDE + PK.B, T.y1 - T.y0);
-    } else {
-      ctx.fillRect(T.x0, F.at, T.x1 - T.x0, PK.NEAR_END + PK.L);
-    }
     ctx.save();
     ctx.setLineDash([0.5, 0.4]);
     ctx.lineWidth = 0.12;
