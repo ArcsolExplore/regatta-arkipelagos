@@ -13,6 +13,8 @@ const GAMES = {
   kryss: { better: 'low', min: 3000, max: 900000 },
   slalom: { better: 'high', min: 0, max: 200000 },
   fortoj: { better: 'high', min: 0, max: 500 },
+  // Förtöja 2: tid i ms. Ett underkänt försök (kontakt) skickas som DNF och rankas alltid sist.
+  parkera: { better: 'low', min: 5000, max: 1800000, dnf: 9999000 },
 };
 
 const headers = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
@@ -106,7 +108,8 @@ export async function POST(request) {
       const score = Number(body.score);
       if (!game || !name || !Number.isFinite(score)) return json(400, { error: 'bad_score' });
       const rules = GAMES[game];
-      if (score < rules.min || score > rules.max) return json(400, { error: 'out_of_range' });
+      const isDnf = rules.dnf !== undefined && score === rules.dnf;
+      if (!isDnf && (score < rules.min || score > rules.max)) return json(400, { error: 'out_of_range' });
       if (Number(body.round) !== state.round.n) return json(409, { error: 'round_changed', state });
 
       const val = Math.round(score);

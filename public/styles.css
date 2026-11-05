@@ -223,8 +223,8 @@ p { margin: 0; }
 /* ---------- topplista ---------- */
 .seg {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
   background: var(--hull);
   border: 1px solid var(--rope);
   border-radius: 12px;
@@ -235,11 +235,11 @@ p { margin: 0; }
   border: 0;
   background: transparent;
   border-radius: 9px;
-  padding: 8px 4px;
+  padding: 8px 1px;
   font-family: var(--display);
   font-weight: 800;
-  font-size: 15px;
-  letter-spacing: .04em;
+  font-size: clamp(12px, 3.4vw, 15px);
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--mist);
   cursor: pointer;
@@ -522,6 +522,42 @@ p { margin: 0; }
 .ctl-lr .pad { height: 76px; font-size: 26px; }
 .ctl-hold .pad { width: 100%; height: 84px; font-size: 26px; background: var(--red); color: var(--white); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .3); }
 .ctl-hold .pad.on { background: #a8222a; }
+
+/* Förtöja 2: roderlinje till vänster, gasreglage till höger */
+.ctl-helm { display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 14px; align-items: center; }
+.helm-steer { display: grid; gap: 6px; min-width: 0; }
+.track {
+  position: relative;
+  background: var(--deck);
+  box-shadow: inset 0 0 0 1px var(--rope-2);
+  touch-action: none;
+  cursor: pointer;
+}
+.track .mid { position: absolute; background: var(--mist-2); }
+.track .thumb {
+  position: absolute;
+  border-radius: 999px;
+  background: var(--yellow);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .35);
+  pointer-events: none;
+}
+.track.on .thumb { transform: scale(1.06); }
+.track:focus-visible { outline: 3px solid var(--foam); outline-offset: 2px; }
+.track-h { height: 64px; border-radius: 32px; }
+.track-h .mid { left: 50%; top: 12px; bottom: 12px; width: 2px; transform: translateX(-1px); }
+.track-h .thumb { top: 7px; width: 50px; height: 50px; transform: translateX(-50%); left: 50%; }
+.track-h.on .thumb { transform: translateX(-50%) scale(1.06); }
+.helm-thr { display: grid; gap: 4px; justify-items: center; }
+.track-v { width: 76px; height: 132px; border-radius: 22px; }
+.track-v .mid { top: 50%; left: 12px; right: 12px; height: 2px; transform: translateY(-1px); }
+.track-v .thumb { left: 8px; right: 8px; height: 30px; transform: translateY(-50%); top: 50%; background: var(--mist); }
+.track-v.on .thumb { transform: translateY(-50%) scale(1.04); }
+.track-v .thumb[data-dir="fram"] { background: var(--good); }
+.track-v .thumb[data-dir="back"] { background: var(--red); }
+.track-v .end { position: absolute; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--mist); pointer-events: none; }
+.track-v .end-fram { top: 6px; }
+.track-v .end-back { bottom: 6px; }
+.thr-txt { font-family: var(--mono); font-size: 11px; color: var(--mist); white-space: nowrap; }
 
 /* ---------- ark ---------- */
 .sheet {
