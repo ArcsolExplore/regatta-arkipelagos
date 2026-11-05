@@ -1,0 +1,10 @@
+{
+  "name": "regatta-arkipelagos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Regatta Arkipelagos: arkadspel, delad topplista och kortlek för sällskapsspelet.",
+  "engines": {
+    "node": ">=20"
+  }
+}

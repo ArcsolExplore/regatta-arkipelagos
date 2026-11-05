@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0a1824">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Regatta Arkipelagos</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 40'%3E%3Crect width='30' height='20' fill='%23d7323b'/%3E%3Crect x='12' width='6' height='20' fill='%23f5c225'/%3E%3Crect y='7' width='30' height='6' fill='%23f5c225'/%3E%3Crect y='20' width='15' height='20' fill='%23f4f4f0'/%3E%3Cpolygon points='15,20 30,20 24,30 30,40 15,40' fill='%232a64c4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <a class="brand" href="#spel" aria-label="Regatta Arkipelagos, till startsidan">
+      <span class="hoist" id="brandFlags"></span>
+      <span class="wordmark">Regatta<b>Arkipelagos</b></span>
+    </a>
+    <button class="chip" id="syncChip" type="button"><i class="dot"></i><span id="syncLabel">Ansluter</span></button>
+  </header>
+
+  <main id="main">
+    <section class="inner" id="view-spel"></section>
+    <section class="inner" id="view-topplista" hidden></section>
+    <section class="inner" id="view-kort" hidden></section>
+  </main>
+
+  <nav class="tabs" aria-label="Huvudmeny">
+    <a class="tab" href="#spel" data-view="spel">Spel</a>
+    <a class="tab" href="#topplista" data-view="topplista">Topplista</a>
+    <a class="tab" href="#kort" data-view="kort">Kort</a>
+  </nav>
+</div>
+
+<div id="play" hidden>
+  <div class="hud">
+    <button class="icon-btn" id="quitBtn" type="button" aria-label="Avsluta spelet">&#x2715;</button>
+    <div class="hud-mid"><div class="hud-title" id="hudTitle"></div><div class="hud-sub" id="hudSub"></div></div>
+    <div class="hud-main" id="hudMain"></div>
+  </div>
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="introPanel" hidden></div>
+    <div class="overlay" id="resultPanel" hidden></div>
+  </div>
+  <div class="ctl" id="ctl"></div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <h2 id="sheetTitle"></h2>
+    <div id="sheetBody"></div>
+    <div class="sheet-actions" id="sheetActions"></div>
+  </div>
+</div>
+
+<script src="logic.js"></script>
+<script src="cards.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
