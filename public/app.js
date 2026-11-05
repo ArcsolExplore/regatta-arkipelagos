@@ -1290,6 +1290,10 @@
   };
 
   /* ---------- start ---------- */
+  // Spelen ritar text på duken. Se till att typsnitten är laddade även om ingen vanlig text använt dem än.
+  try {
+    if (document.fonts) ['700 20px Adventor', '400 20px Adventor'].forEach((f) => document.fonts.load(f).catch(() => {}));
+  } catch (e) { /* ok */ }
   Play.input = inputProxy; // spelen läser via proxyn
   setView(location.hash.slice(1) || 'spel');
   renderAll(true);

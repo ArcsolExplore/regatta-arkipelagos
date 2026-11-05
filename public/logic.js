@@ -43,8 +43,21 @@ function fmtTime(ms) {
 }
 const fmtNum = (n, d = 1) => n.toFixed(d).replace('.', ',');
 
-const FONT_D = '"Big Shoulders Display","Arial Narrow",Impact,sans-serif';
-const FONT_M = '"IBM Plex Mono",ui-monospace,Menlo,monospace';
+// Samma typsnitt som resten av appen, lagda i appen (public/fonts). Siffrorna i Adventor är lika breda,
+// så tider och poäng hoppar inte när de räknas upp.
+const FONT_D = '"Adventor","Avenir Next","Century Gothic",sans-serif';
+const FONT_M = '"Adventor","Avenir Next","Century Gothic",sans-serif';
+
+// Krymp texten om den inte ryms på maxW (spelets egna enheter). Returnerar storleken som användes.
+function fitFont(ctx, text, weight, size, family, maxW) {
+  ctx.font = `${weight} ${size}px ${family}`;
+  const w = ctx.measureText(text).width;
+  if (maxW > 0 && w > maxW) {
+    size = Math.max(8, Math.floor((size * maxW) / w));
+    ctx.font = `${weight} ${size}px ${family}`;
+  }
+  return size;
+}
 
 function say(s, text, color, dur) {
   s.msg = text;
@@ -56,7 +69,8 @@ function centerMsg(ctx, s, x, y, size = 32) {
   if (!(s.msgT > 0) || !s.msg) return;
   ctx.save();
   ctx.globalAlpha = Math.min(1, s.msgT / 0.25);
-  ctx.font = `900 ${size}px ${FONT_D}`;
+  // Meddelandet är centrerat kring x och får ta hela bredden runt det, med marginal.
+  fitFont(ctx, s.msg, 700, size, FONT_D, 2 * x - 28);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
@@ -70,7 +84,7 @@ function centerMsg(ctx, s, x, y, size = 32) {
 
 function smallText(ctx, text, x, y, align = 'center', alpha = 0.75, size = 11) {
   ctx.save();
-  ctx.font = `600 ${size}px ${FONT_M}`;
+  fitFont(ctx, text, 700, size, FONT_M, align === 'center' ? 2 * x - 20 : 0);
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';
   ctx.fillStyle = `rgba(234,241,245,${alpha})`;
@@ -1669,7 +1683,8 @@ const parkera = {
 
     // Texter i skärmenheter
     const cxT = ((T.x0 + T.x1) / 2) * K;
-    if (s.phase === 'run' || s.phase === 'intro') {
+    // Under introt syns scenariots rubrik mitt på; platsens etikett kommer när man börjar köra.
+    if (s.phase === 'run') {
       const label = s.tip || PK_INFO[S.type].label;
       const col = s.ready ? '#4cc38a' : s.tip ? '#f4f4f0' : 'rgba(245,194,37,.95)';
       ctx.save();

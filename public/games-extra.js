@@ -154,6 +154,9 @@ function nvMap(seed) {
     for (let i = 0; i < 34; i++) {
       const x = 16 + r() * (NV.W - 32), y = 90 + r() * 560;
       if (obs.some((o) => polyPointGap(o.P, x, y) < 12)) continue;
+      // Inga siffror på varandra, och inga mitt i starten, hamnen eller märkena.
+      if (map.depths.some((d) => Math.abs(d.x - x) < 24 && Math.abs(d.y - y) < 16)) continue;
+      if ([start, goal, ...marks].some((p) => Math.hypot(p.x - x, p.y - y) < 34)) continue;
       map.depths.push({ x, y, d: 3 + Math.floor(r() * 38) });
     }
     return map;
@@ -1627,7 +1630,8 @@ const grill = {
     });
     smallText(ctx, 'Lågor visar värmen på platsen', W / 2, 666, 'center', 0.55, 11);
     if (s.t < 5) smallText(ctx, 'Tryck = vänd · håll = servera', W / 2, 226 - 4, 'center', 0.95, 13);
-    centerMsg(ctx, s, W / 2, 400, 36);
+    // Över gallret skulle meddelandet krocka med poängen som stiger från maten; himlen är fri.
+    centerMsg(ctx, s, W / 2, 150, 36);
   },
   hud(s) {
     return { main: `${Math.max(0, s.score)} p`, sub: `${Math.ceil(s.left)} s kvar · ${s.served} serverade` };

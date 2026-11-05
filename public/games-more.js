@@ -29,6 +29,13 @@ function msSpawns(seed) {
   return out;
 }
 
+/* Poängtext som stiger: håll den innanför kanterna och stapla den ovanför en som redan syns på samma ställe. */
+function msPop(s, x, y, txt, c) {
+  x = clamp(x, 44, MS.W - 44);
+  for (let k = 0; k < 6 && s.pops.some((p) => p.t < 1 && Math.abs(p.x - x) < 120 && Math.abs((p.y - p.t * 30) - y) < 32); k++) y -= 34;
+  s.pops.push({ x, y, txt, c, t: 0 });
+}
+
 function msHit(s, gull, now) {
   if (gull.state !== 'in') return;
   gull.hp--;
@@ -47,7 +54,7 @@ function msHit(s, gull, now) {
   gull.vx = ((gull.x - MS.CX) / d) * 380;
   gull.vy = ((gull.y - MS.CY) / d) * 380 - 120;
   burst(s.parts, gull.x, gull.y, 10, '#ffffff', 160);
-  s.pops.push({ x: gull.x, y: gull.y, txt: s.combo > 1 ? `+${p} ×${s.combo}` : `+${p}`, c: s.combo > 1 ? '#f5c225' : '#ffffff', t: 0 });
+  msPop(s, gull.x, gull.y, s.combo > 1 ? `+${p} ×${s.combo}` : `+${p}`, s.combo > 1 ? '#f5c225' : '#ffffff');
 }
 
 const masattack = {
@@ -125,7 +132,7 @@ const masattack = {
         g.vx = -ux * 300;
         g.vy = -uy * 300 - 60;
         g.carry = true;
-        s.pops.push({ x: MS.CX, y: MS.CY - 40, txt: '−1 RÄKA', c: '#ff6b6b', t: 0 });
+        msPop(s, MS.CX, MS.CY - 40, '−1 RÄKA', '#ff6b6b');
         if (s.shrimps <= 0) {
           s.shrimps = 0;
           s.phase = 'done';
