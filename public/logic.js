@@ -1007,14 +1007,16 @@ const fortoj = {
    Kollisioner: exakt överlapp mellan konvexa polygoner (SAT). Samma polygoner
    som testas är de som ritas, så det du ser är det som räknas.
    ===================================================================== */
-const PK = { W: 36, H: 64, K: 10, L: 8, B: 3, DNF: 9999000, HOLD: 0.6 };
+// HOLD: hur länge båten ska ligga rätt innan tamparna går i land. PULL: hur länge tamparna drar in den.
+// NEAR: största avstånd (m) mellan skrov och brygga/kaj för att räknas som framme. SLOW: största fart (m/s).
+const PK = { W: 36, H: 64, K: 10, L: 8, B: 3, DNF: 9999000, HOLD: 0.25, PULL: 0.9, NEAR_SIDE: 1.0, NEAR_END: 1.3, SLOW: 0.6, TURN: 0.3, ALIGN: 15 };
 const PK_TYPES = ['langsides', 'forut', 'backa', 'ficka', 'inlopp'];
 const PK_INFO = {
-  langsides: { name: 'Långsides', hint: 'Lägg till långsides mot bryggan, i luckan mellan båtarna.', wind: [3, 5], label: 'LÅNGSIDES' },
-  forut: { name: 'Förut in', hint: 'Kör in förut i den markerade boxen mellan bommarna.', wind: [4, 7], label: 'FÖRUT IN' },
-  backa: { name: 'Backa in', hint: 'Passera boxen, vänd och backa in med aktern först.', wind: [5, 8], label: 'AKTERN IN' },
-  ficka: { name: 'Fickparkering', hint: 'Trång lucka. Lägg till långsides utan att röra grannarna.', wind: [6, 9], label: 'LÅNGSIDES' },
-  inlopp: { name: 'Hamninloppet', hint: 'Genom öppningen i vågbrytaren, sedan förut in i boxen.', wind: [7, 10], label: 'FÖRUT IN' },
+  langsides: { name: 'Långsides', hint: 'Lägg till långsides mot bryggan, i luckan mellan båtarna.', wind: [2, 4], label: 'LÅNGSIDES' },
+  forut: { name: 'Förut in', hint: 'Kör in förut i den markerade boxen mellan bommarna.', wind: [3, 5], label: 'FÖRUT IN' },
+  backa: { name: 'Backa in', hint: 'Passera boxen, vänd och backa in med aktern först.', wind: [3, 5], label: 'AKTERN IN' },
+  ficka: { name: 'Fickparkering', hint: 'Trång lucka. Lägg till långsides utan att röra grannarna.', wind: [4, 7], label: 'LÅNGSIDES' },
+  inlopp: { name: 'Hamninloppet', hint: 'Genom öppningen i vågbrytaren, sedan förut in i boxen.', wind: [4, 6], label: 'FÖRUT IN' },
 };
 const PK_COLORS = ['#2a64c4', '#4cc38a', '#d7323b', '#f4f4f0', '#8a6fd6', '#e0873a', '#1f8f8a'];
 const PK_COMPASS = ['N', 'NO', 'O', 'SO', 'S', 'SV', 'V', 'NV'];
@@ -1067,26 +1069,26 @@ function polysOverlap(A, B) {
   return true;
 }
 
-function pkBuild(type, seed, index) {
+function pkBuild(type, seed, index, windFrom) {
   const r = rng(seed);
   const W = PK.W, H = PK.H;
   const obs = [];
   const addRect = (x0, y0, x1, y1, kind) => obs.push({ kind, poly: rectPts(x0, y0, x1, y1) });
   const addBoat = (x, y, h, L, B) => obs.push({ kind: 'boat', x, y, h, L, B, color: PK_COLORS[Math.floor(r() * PK_COLORS.length)], poly: placePts(hullPts(L, B), x, y, h) });
   const UP = -Math.PI / 2, DOWN = Math.PI / 2;
-  let target, start, head;
+  let berth, face, start, head;
 
   addRect(0, 0, 0.8, H, 'quay');
   addRect(W - 0.8, 0, W, H, 'quay');
 
   if (type === 'langsides' || type === 'ficka') {
     const tight = type === 'ficka';
-    const face = 29.6;
+    const faceX = 29.6;
     addRect(0.8, 0, W - 0.8, 3, 'quay');
-    addRect(face, 5, W - 0.8, 54, 'dock');
+    addRect(faceX, 5, W - 0.8, 54, 'dock');
     const gapLen = tight ? 11.4 + r() * 0.8 : 19 + r() * 3;
     const gy = tight ? 18 + r() * 10 : 14 + r() * 6;
-    const bx = face - 0.25 - 1.6;
+    const bx = faceX - 0.25 - 1.6;
     const chain = (yStart, dir, count) => {
       let y = yStart;
       for (let i = 0; i < count; i++) {
@@ -1101,7 +1103,9 @@ function pkBuild(type, seed, index) {
     };
     chain(gy - 0.6, -1, tight ? 3 : 1);
     chain(gy + gapLen + 0.6, 1, tight ? 3 : 1);
-    target = { x0: face - 0.1 - 4.3, x1: face - 0.1, y0: gy + 0.1, y1: gy + gapLen - 0.1 };
+    // Båtplatsen: luckan mellan grannarna, ut till 5,6 m från bryggkanten.
+    berth = { x0: faceX - 5.6, x1: faceX - 0.02, y0: gy + 0.05, y1: gy + gapLen - 0.05 };
+    face = { axis: 'x', at: faceX, toward: 1 };
     head = 'vert';
     addRect(0.8, 10, 4.2, 50, 'dock');
     for (let y2 = 12; y2 < 48;) {
@@ -1117,9 +1121,9 @@ function pkBuild(type, seed, index) {
     addRect(0.8, 0, W - 0.8, 6, 'quay');
     const boomLen = 9.4;
     const booms = [];
-    for (let k = 0; k <= 6; k++) booms.push(1.6 + k * 4.8);
+    for (let k = 0; k <= 6; k++) booms.push(1.6 + k * 5.4);
     for (const b of booms) addRect(b, 6, b + 0.4, 6 + boomLen, 'boom');
-    const slotC = (k) => booms[k] + 0.4 + 2.2;
+    const slotC = (k) => booms[k] + 0.4 + 2.5;
     let kt;
     let ox = 0;
     if (type === 'inlopp') {
@@ -1132,12 +1136,14 @@ function pkBuild(type, seed, index) {
       const occupied = r() < 0.82;
       const L = 7.2 + r() * 2;
       const bowIn = r() < 0.6;
-      const jit = (r() * 2 - 1) * 0.25;
+      const jit = (r() * 2 - 1) * 0.4;
       if (k === kt || !occupied) continue;
       addBoat(slotC(k) + jit, 6.35 + L / 2, bowIn ? UP : DOWN, L, 3.0);
     }
     const tx = slotC(kt);
-    target = { x0: tx - 2.15, x1: tx + 2.15, y0: 6.1, y1: 6.1 + PK.L + 1.3 };
+    // Båtplatsen: mellan bommarnas insidor, från kajen till strax utanför bommarna.
+    berth = { x0: tx - 2.48, x1: tx + 2.48, y0: 6.02, y1: 6 + boomLen + 0.8 };
+    face = { axis: 'y', at: 6, toward: -1 };
     head = type === 'backa' ? 'down' : 'up';
     if (type === 'inlopp') {
       addRect(0.8, 31, ox - 4, 34, 'quay');
@@ -1151,10 +1157,12 @@ function pkBuild(type, seed, index) {
     }
   }
 
-  const wind = { ws: PK_INFO[type].wind[0] + r() * (PK_INFO[type].wind[1] - PK_INFO[type].wind[0]), from: r() * TAU, ph: r() * TAU, ph2: r() * TAU };
+  // Vindriktningen är densamma i alla scener i omgången. Styrkan ökar scen för scen.
+  const [lo, hi] = PK_INFO[type].wind;
+  const wind = { ws: lo + r() * (hi - lo), from: windFrom, ph: r() * TAU, ph2: r() * TAU };
 
   if (r() < 0.5) {
-    // Spegelvänd hela scenen så att bryggan ibland ligger på andra sidan.
+    // Spegelvänd scenen (inte vinden) så att bryggan ibland ligger på andra sidan.
     for (const o of obs) {
       o.poly = o.poly.map(([x, y]) => [W - x, y]);
       if (o.kind === 'boat') {
@@ -1162,19 +1170,19 @@ function pkBuild(type, seed, index) {
         o.h = normA(Math.PI - o.h);
       }
     }
-    target = { x0: W - target.x1, x1: W - target.x0, y0: target.y0, y1: target.y1 };
+    berth = { x0: W - berth.x1, x1: W - berth.x0, y0: berth.y0, y1: berth.y1 };
+    if (face.axis === 'x') face = { axis: 'x', at: W - face.at, toward: -face.toward };
     start = { x: W - start.x, y: start.y, h: normA(Math.PI - start.h) };
   }
   for (const o of obs) o.box = polyBox(o.poly);
-  return { type, index, ...PK_INFO[type], obs, target, start, head, wind };
+  return { type, index, ...PK_INFO[type], obs, berth, face, start, head, wind };
 }
 
 function pkWind(S, t) {
   const w = S.wind;
-  const from = w.from + 0.12 * Math.sin(t * 0.31 + w.ph2);
-  const ws = w.ws * (1 + 0.2 * Math.sin(t * 0.63 + w.ph) + 0.08 * Math.sin(t * 1.9 + w.ph2));
-  const to = from + Math.PI;
-  return { ws, from, dx: Math.cos(to), dy: Math.sin(to) };
+  const ws = w.ws * (1 + 0.18 * Math.sin(t * 0.63 + w.ph) + 0.07 * Math.sin(t * 1.9 + w.ph2));
+  const to = w.from + Math.PI;
+  return { ws, from: w.from, dx: Math.cos(to), dy: Math.sin(to) };
 }
 function pkCompass(from) {
   // Uppåt på skärmen är norr.
@@ -1182,43 +1190,87 @@ function pkCompass(from) {
   return PK_COMPASS[Math.round(bearing / (Math.PI / 4)) % 8];
 }
 
-// Båtmodell i båtens egna axlar: u = fart framåt, v = fart i sidled, r = girhastighet.
-// Dämpning integreras exakt (exp), så resultatet beror inte på stegets storlek.
-function pkPhysics(b, rud, thr, w, dt) {
+/* Båtmodell för en 8 m motorbåt med en propeller, i båtens egna axlar:
+   u = fart framåt, v = fart i sidled vid vridpunkten, r = girhastighet.
+   - Tröghet: den tar tid att få upp och att stoppa farten; back drar sämre än fram.
+   - Drevet styr: rattens utslag ger kraft med fart genom vattnet eller med gas, framåt och bakåt.
+   - Vridpunkten ligger förut när båten går framåt och akterut när den backar, så aktern sveper ut i svängar.
+   - Back ger propellerns sidverkan: aktern vandrar åt ena hållet.
+   - Vinden trycker båten i sidled och vrider fören nedvind, mest när båten står still.
+   Det linjära motståndet integreras exakt, så resultatet beror inte på bildfrekvensen. */
+function pkPhysics(b, rud, thr, w, dt, push) {
   const c = Math.cos(b.h), sn = Math.sin(b.h);
-  const aw = 0.0075 * w.ws * w.ws;
+  const aw = 0.0045 * w.ws * w.ws;
   const wx = w.dx * aw, wy = w.dy * aw;
-  const aSurgeW = (wx * c + wy * sn) * 0.35;
-  const aSwayW = -wx * sn + wy * c;
-  const thrust = thr >= 0 ? thr * 1.15 : thr * 0.75;
+  const px = push ? push.x : 0, py = push ? push.y : 0;
+  const aSurge = (wx * c + wy * sn) * 0.3 + (px * c + py * sn);
+  const aSway = -wx * sn + wy * c + (-px * sn + py * c);
+  const thrust = thr >= 0 ? thr * 0.6 : thr * 0.42;
 
-  b.u += (thrust + aSurgeW - 0.09 * b.u * Math.abs(b.u)) * dt;
-  b.u *= Math.exp(-0.28 * dt);
+  const eu = Math.exp(-0.12 * dt);
+  b.u = b.u * eu + ((thrust + aSurge - 0.06 * b.u * Math.abs(b.u)) / 0.12) * (1 - eu);
 
-  const kv = 1.5;
+  // Sidmotståndet växer med farten: ett skrov som går framåt greppar vattnet bättre.
+  const kv = 1.3 + 1.0 * Math.abs(b.u);
   const ev = Math.exp(-kv * dt);
-  b.v = b.v * ev + (aSwayW / kv) * (1 - ev);
+  b.v = b.v * ev + ((aSway - 1.1 * b.v * Math.abs(b.v)) / kv) * (1 - ev);
 
-  const flow = b.u + 0.9 * Math.max(thr, 0);
-  const windTurn = (0.0022 * w.ws * w.ws * Math.sin(angDiff(Math.atan2(w.dy, w.dx), b.h))) / (1 + 1.5 * Math.abs(b.u));
-  const walk = thr < 0 ? 0.07 * thr : 0;
-  const er = Math.exp(-1.9 * dt);
-  const torque = rud * 0.26 * flow + walk + windTurn;
-  b.r = b.r * er + (torque / 1.9) * (1 - er);
+  // Drev: propellern vrids med ratten, så styrkraften kommer både från farten och från
+  // propellerns egen ström, framåt såväl som bakåt. Back ger lite sidverkan.
+  const rudder = rud * 0.16 * (b.u + 1.6 * thr);
+  const walk = thr < 0 ? -0.05 * thr : 0;
+  const windTurn = (0.0012 * w.ws * w.ws * Math.sin(angDiff(Math.atan2(w.dy, w.dx), b.h))) / (1 + 1.2 * Math.abs(b.u));
+  const er = Math.exp(-1.0 * dt);
+  b.r = b.r * er + (rudder + walk + windTurn - 0.5 * b.r * Math.abs(b.r)) * (1 - er);
+
+  const xp = 0.22 * PK.L * clamp(b.u / 0.6, -1, 1);
+  const vc = b.v - b.r * xp; // sidfarten i båtens mitt, med vridpunkten förut eller akterut
   b.h = normA(b.h + b.r * dt);
-  b.x += (b.u * c - b.v * sn) * dt;
-  b.y += (b.u * sn + b.v * c) * dt;
+  b.x += (b.u * c - vc * sn) * dt;
+  b.y += (b.u * sn + vc * c) * dt;
 }
 
-function pkInside(P, t) {
-  for (const [x, y] of P) if (x <= t.x0 || x >= t.x1 || y <= t.y0 || y >= t.y1) return false;
+function pkInBerth(P, bt) {
+  for (const [x, y] of P) if (x <= bt.x0 || x >= bt.x1 || y <= bt.y0 || y >= bt.y1) return false;
   return true;
 }
+// Kortaste avståndet från skrovet till bryggkanten eller kajen.
+function pkGap(P, face) {
+  let m = Infinity;
+  for (const [x, y] of P) {
+    const d = face.axis === 'x' ? (face.toward > 0 ? face.at - x : x - face.at) : face.toward < 0 ? y - face.at : face.at - y;
+    if (d < m) m = d;
+  }
+  return m;
+}
 function pkAligned(h, head) {
-  const tol = (10 * Math.PI) / 180;
+  const tol = (PK.ALIGN * Math.PI) / 180;
   const up = Math.abs(angDiff(h, -Math.PI / 2)) < tol;
   const down = Math.abs(angDiff(h, Math.PI / 2)) < tol;
   return head === 'up' ? up : head === 'down' ? down : up || down;
+}
+// Där tamparna drar in båten: tätt intill, rakt och mitt i platsen.
+function pkIdeal(S, b) {
+  const { L, B } = PK;
+  if (S.face.axis === 'y') return { x: (S.berth.x0 + S.berth.x1) / 2, y: S.face.at + 0.3 + L / 2, h: S.head === 'down' ? Math.PI / 2 : -Math.PI / 2 };
+  const up = Math.abs(angDiff(b.h, -Math.PI / 2)) < Math.PI / 2;
+  return { x: S.face.at - S.face.toward * (0.3 + B / 2), y: clamp(b.y, S.berth.y0 + L / 2 + 0.2, S.berth.y1 - L / 2 - 0.2), h: up ? -Math.PI / 2 : Math.PI / 2 };
+}
+// Tamparnas fästen: båtens knapar och var de hamnar på bryggan/kajen.
+function pkLines(S, b) {
+  const { L, B } = PK;
+  const c = Math.cos(b.h), sn = Math.sin(b.h);
+  const at = (bx, by) => [b.x + bx * c - by * sn, b.y + bx * sn + by * c];
+  if (S.face.axis === 'y') {
+    const endX = S.head === 'down' ? -L / 2 + 0.5 : L / 2 - 1.4;
+    const p1 = at(endX, -(B / 2 - 0.35)), p2 = at(endX, B / 2 - 0.35);
+    const sideL = p1[0] < p2[0] ? p1 : p2, sideR = p1[0] < p2[0] ? p2 : p1;
+    return [[sideL, [sideL[0] - 1.6, S.face.at]], [sideR, [sideR[0] + 1.6, S.face.at]]];
+  }
+  const side = Math.sign(-sn * S.face.toward) || 1;
+  const bow = at(L / 2 - 1.4, side * (B / 2 - 0.3)), stern = at(-L / 2 + 0.6, side * (B / 2 - 0.3));
+  const fwdY = Math.sign(bow[1] - stern[1]) || 1;
+  return [[bow, [S.face.at, bow[1] + fwdY * 1.6]], [stern, [S.face.at, stern[1] - fwdY * 1.6]]];
 }
 
 function pkFillPoly(ctx, P, fill, stroke, lw) {
@@ -1277,6 +1329,8 @@ function wrapLines(ctx, text, maxW) {
   return lines;
 }
 
+const smoothstep = (t) => t * t * (3 - 2 * t);
+
 const parkera = {
   id: 'parkera',
   fit: 'contain',
@@ -1284,11 +1338,12 @@ const parkera = {
   H: PK.H * PK.K,
   controls: 'helm',
   create(seed) {
-    const scen = PK_TYPES.map((t, i) => pkBuild(t, (seed ^ hashStr('pk' + i + t)) >>> 0, i));
+    const windFrom = rng((seed ^ hashStr('pk-vind')) >>> 0)() * TAU;
+    const scen = PK_TYPES.map((t, i) => pkBuild(t, (seed ^ hashStr('pk' + i + t)) >>> 0, i, windFrom));
     const r = rng(seed ^ 0x5eed);
     const streaks = [];
     for (let i = 0; i < 70; i++) streaks.push({ x: r() * PK.W, y: r() * PK.H, l: 0.6 + r() * 0.8 });
-    const s = { scen, i: 0, phase: 'intro', phaseT: 0, t: 0, scenT: 0, total: 0, times: [], b: null, rud: 0, thr: 0, held: 0, inside: false, aligned: false, hit: null, bubbles: [], streaks, msg: '', msgT: 0, msgC: '#f5c225' };
+    const s = { scen, i: 0, phase: 'intro', phaseT: 0, t: 0, scenT: 0, total: 0, times: [], b: null, rud: 0, thr: 0, held: 0, inBerth: false, aligned: false, ready: false, gap: Infinity, tip: '', pull: null, pullT: 0, hit: null, bubbles: [], streaks, msg: '', msgT: 0, msgC: '#f5c225' };
     parkera.startScen(s);
     return s;
   },
@@ -1301,8 +1356,11 @@ const parkera = {
     s.held = 0;
     s.rud = 0;
     s.thr = 0;
-    s.inside = false;
+    s.inBerth = false;
     s.aligned = false;
+    s.ready = false;
+    s.tip = '';
+    s.pull = null;
   },
   hull(s) {
     return placePts(PK_HULL, s.b.x, s.b.y, s.b.h);
@@ -1315,6 +1373,17 @@ const parkera = {
     }
     return null;
   },
+  // Vad som saknas innan tamparna kan gå i land, visas vid båtplatsen.
+  tipFor(s, S, near, slow) {
+    const B = S.berth;
+    const inside = s.b.x > B.x0 - 3 && s.b.x < B.x1 + 3 && s.b.y > B.y0 - 3 && s.b.y < B.y1 + 3;
+    if (!inside) return '';
+    if (!s.inBerth) return 'HELA BÅTEN I RUTAN';
+    if (!s.aligned) return S.head === 'up' ? 'FÖREN MOT KAJEN' : S.head === 'down' ? 'AKTERN MOT KAJEN' : 'LÄGG DIG PARALLELLT';
+    if (!near) return S.face.axis === 'x' ? 'NÄRMARE BRYGGAN' : 'NÄRMARE KAJEN';
+    if (!slow) return 'SAKTA NER';
+    return 'HÅLL KVAR';
+  },
   update(s, dt, inp) {
     s.t += dt;
     s.phaseT += dt;
@@ -1325,13 +1394,29 @@ const parkera = {
       p.life -= dt;
     }
     s.bubbles = s.bubbles.filter((p) => p.life > 0);
-    const S = s.scen[s.i];
+    const S = s.scen[Math.min(s.i, s.scen.length - 1)];
+    const b = s.b;
 
     if (s.phase === 'intro') {
-      if (s.phaseT > 2.2) {
+      if (s.phaseT > 2.4) {
         s.phase = 'run';
         s.phaseT = 0;
-        s.b.u = 1.8; // båten kommer in med fart
+        b.u = 1.6; // båten kommer in med fart
+      }
+      return;
+    }
+    if (s.phase === 'lines') {
+      // Tamparna i land: båten dras mjukt in till sin plats. Klockan har redan stannat.
+      s.pullT += dt;
+      const k = smoothstep(clamp(s.pullT / PK.PULL, 0, 1));
+      const f = s.pull.from, to = s.pull.to;
+      b.x = lerp(f.x, to.x, k);
+      b.y = lerp(f.y, to.y, k);
+      b.h = normA(f.h + angDiff(to.h, f.h) * k);
+      if (s.pullT > PK.PULL + 0.35) {
+        s.phase = 'moored';
+        s.phaseT = 0;
+        say(s, 'FÖRTÖJD!', '#4cc38a', 1.6);
       }
       return;
     }
@@ -1351,16 +1436,13 @@ const parkera = {
     s.total += dt;
     const rudIn = inp.left ? -1 : inp.right ? 1 : clamp(inp.rudder || 0, -1, 1);
     const thrIn = clamp(inp.throttle || 0, -1, 1);
-    s.rud += clamp(rudIn - s.rud, -2.5 * dt, 2.5 * dt);
-    s.thr += clamp(thrIn - s.thr, -1.6 * dt, 1.6 * dt);
+    s.rud += clamp(rudIn - s.rud, -2.2 * dt, 2.2 * dt);
+    s.thr += clamp(thrIn - s.thr, -1.4 * dt, 1.4 * dt);
 
-    const b = s.b;
-    pkPhysics(b, s.rud, s.thr, pkWind(S, s.scenT), dt);
-    if (b.y > PK.H + 2) {
-      b.y = PK.H + 2;
-      b.u *= Math.exp(-4 * dt);
-      b.v *= Math.exp(-4 * dt);
-    }
+    // Nederkanten är öppet vatten: en mjuk ström skjuter tillbaka båten i stället för att stoppa den.
+    const over = b.y - (PK.H - 3);
+    const push = over > 0 ? { x: 0, y: -over * 2.5 } : null;
+    pkPhysics(b, s.rud, s.thr, pkWind(S, s.scenT), dt, push);
 
     if (Math.abs(s.thr) > 0.1 && Math.random() < dt * 40) {
       const c = Math.cos(b.h), sn = Math.sin(b.h);
@@ -1379,16 +1461,26 @@ const parkera = {
       return;
     }
 
-    s.inside = pkInside(hull, S.target);
+    s.inBerth = pkInBerth(hull, S.berth);
     s.aligned = pkAligned(b.h, S.head);
-    const stopped = Math.abs(b.u) < 0.3 && Math.abs(b.r) < 0.2;
-    if (s.inside && s.aligned && stopped) s.held += dt;
+    s.gap = pkGap(hull, S.face);
+    const near = s.gap <= (S.face.axis === 'x' ? PK.NEAR_SIDE : PK.NEAR_END);
+    const slow = Math.hypot(b.u, b.v) < PK.SLOW && Math.abs(b.r) < PK.TURN;
+    s.ready = s.inBerth && s.aligned && near && slow;
+    s.tip = parkera.tipFor(s, S, near, slow);
+    if (s.ready) s.held += dt;
     else s.held = 0;
     if (s.held >= PK.HOLD) {
       s.times.push(s.scenT);
-      s.phase = 'moored';
+      s.phase = 'lines';
       s.phaseT = 0;
-      say(s, 'FÖRTÖJD!', '#4cc38a', 1.6);
+      s.pullT = 0;
+      s.pull = { from: { x: b.x, y: b.y, h: b.h }, to: pkIdeal(S, b) };
+      b.u = 0;
+      b.v = 0;
+      b.r = 0;
+      s.vibrate = true;
+      say(s, 'TAMPARNA I LAND', '#4cc38a', PK.PULL + 0.35);
     }
   },
   draw(ctx, s) {
@@ -1398,7 +1490,7 @@ const parkera = {
     ctx.scale(K, K);
     waterFill(ctx, PK.W, PK.H, '#13456a', '#0f3a58');
 
-    // Vindkrusningar: rör sig med vinden, tätare och tydligare när det blåser mer.
+    // Vindkrusningar: rör sig med vinden, tydligare när det blåser mer.
     ctx.strokeStyle = `rgba(220,240,255,${0.08 + w.ws * 0.012})`;
     ctx.lineWidth = 0.12;
     ctx.lineCap = 'round';
@@ -1413,15 +1505,23 @@ const parkera = {
       ctx.stroke();
     }
 
-    // Målbox
-    const T = S.target;
-    const ok = s.inside && s.aligned;
-    ctx.fillStyle = ok ? 'rgba(76,195,138,.18)' : 'rgba(245,194,37,.08)';
+    // Båtplatsen, med zonen närmast bryggan där båten ska ligga.
+    const T = S.berth, F = S.face;
+    const docking = s.phase === 'lines' || s.phase === 'moored';
+    const laid = (s.inBerth && s.aligned) || docking;
+    ctx.fillStyle = laid ? 'rgba(76,195,138,.16)' : 'rgba(245,194,37,.07)';
     ctx.fillRect(T.x0, T.y0, T.x1 - T.x0, T.y1 - T.y0);
+    ctx.fillStyle = s.ready || docking ? 'rgba(76,195,138,.32)' : 'rgba(245,194,37,.14)';
+    if (F.axis === 'x') {
+      const zx = F.toward > 0 ? F.at - PK.NEAR_SIDE - PK.B : F.at;
+      ctx.fillRect(zx, T.y0, PK.NEAR_SIDE + PK.B, T.y1 - T.y0);
+    } else {
+      ctx.fillRect(T.x0, F.at, T.x1 - T.x0, PK.NEAR_END + PK.L);
+    }
     ctx.save();
     ctx.setLineDash([0.5, 0.4]);
     ctx.lineWidth = 0.12;
-    ctx.strokeStyle = ok ? '#4cc38a' : 'rgba(245,194,37,.85)';
+    ctx.strokeStyle = laid ? '#4cc38a' : 'rgba(245,194,37,.85)';
     ctx.strokeRect(T.x0, T.y0, T.x1 - T.x0, T.y1 - T.y0);
     ctx.restore();
 
@@ -1471,22 +1571,56 @@ const parkera = {
     const b = s.b;
     const crashed = s.phase === 'crash';
     pkDrawBoat(ctx, b.x, b.y, b.h, PK.L, PK.B, crashed ? '#ffb3b3' : '#f4f4f0', crashed ? '#d7323b' : '#f5c225', '#f5c225');
+
+    // Förtöjningstampar från båtens knapar till pollare på bryggan.
+    if (docking) {
+      const k = s.phase === 'lines' ? clamp(s.pullT / 0.25, 0, 1) : 1;
+      for (const [from, to] of pkLines(S, b)) {
+        const ex = lerp(from[0], to[0], k), ey = lerp(from[1], to[1], k);
+        const sag = s.phase === 'lines' ? 0.35 * (1 - smoothstep(clamp(s.pullT / PK.PULL, 0, 1))) : 0.12;
+        const mx = (from[0] + ex) / 2, my = (from[1] + ey) / 2;
+        const nx = -(ey - from[1]), ny = ex - from[0];
+        const nl = Math.hypot(nx, ny) || 1;
+        ctx.strokeStyle = '#f2e6c8';
+        ctx.lineWidth = 0.2;
+        ctx.beginPath();
+        ctx.moveTo(from[0], from[1]);
+        ctx.quadraticCurveTo(mx + (nx / nl) * sag, my + (ny / nl) * sag, ex, ey);
+        ctx.stroke();
+        ctx.fillStyle = '#2a2f35';
+        ctx.beginPath();
+        ctx.arc(to[0], to[1], 0.32, 0, TAU);
+        ctx.fill();
+      }
+    }
     ctx.restore();
 
     // Texter i skärmenheter
-    const tcx = ((T.x0 + T.x1) / 2) * K;
-    const tLabelY = S.head === 'vert' ? ((T.y0 + T.y1) / 2) * K : T.y1 * K + 14;
+    const cxT = ((T.x0 + T.x1) / 2) * K;
     if (s.phase === 'run' || s.phase === 'intro') {
+      const label = s.tip || PK_INFO[S.type].label;
+      const col = s.ready ? '#4cc38a' : s.tip ? '#f4f4f0' : 'rgba(245,194,37,.95)';
       ctx.save();
-      ctx.font = `600 10px ${FONT_M}`;
+      ctx.font = `600 ${s.tip ? 11 : 10}px ${FONT_M}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = ok ? '#4cc38a' : 'rgba(245,194,37,.95)';
-      if (S.head === 'vert') {
-        ctx.translate(tcx, tLabelY);
+      if (F.axis === 'x') {
+        const lx = (F.toward > 0 ? T.x0 - 0.9 : T.x1 + 0.9) * K;
+        ctx.translate(lx, ((T.y0 + T.y1) / 2) * K);
         ctx.rotate(-Math.PI / 2);
-        ctx.fillText(PK_INFO[S.type].label, 0, 0);
-      } else ctx.fillText(PK_INFO[S.type].label, tcx, tLabelY);
+        ctx.fillStyle = 'rgba(6,14,22,.65)';
+        const tw = ctx.measureText(label).width + 12;
+        ctx.fillRect(-tw / 2, -9, tw, 18);
+        ctx.fillStyle = col;
+        ctx.fillText(label, 0, 0);
+      } else {
+        const ly = T.y1 * K + 14;
+        ctx.fillStyle = 'rgba(6,14,22,.65)';
+        const tw = ctx.measureText(label).width + 12;
+        ctx.fillRect(cxT - tw / 2, ly - 9, tw, 18);
+        ctx.fillStyle = col;
+        ctx.fillText(label, cxT, ly);
+      }
       ctx.restore();
     }
     if (s.phase === 'run' && s.held > 0) {
@@ -1523,30 +1657,33 @@ const parkera = {
 
     const W = PK.W * K;
     if (s.phase === 'intro') {
-      ctx.fillStyle = 'rgba(6,14,22,.82)';
-      ctx.fillRect(0, 250, W, 150);
+      ctx.fillStyle = 'rgba(6,14,22,.84)';
+      ctx.fillRect(0, 244, W, 170);
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `600 12px ${FONT_M}`;
       ctx.fillStyle = 'rgba(234,241,245,.75)';
-      ctx.fillText(`SCEN ${s.i + 1} AV ${s.scen.length}`, W / 2, 274);
+      ctx.fillText(`SCEN ${s.i + 1} AV ${s.scen.length}`, W / 2, 268);
       ctx.font = `900 36px ${FONT_D}`;
       ctx.fillStyle = '#f5c225';
-      ctx.fillText(S.name.toUpperCase(), W / 2, 306);
+      ctx.fillText(S.name.toUpperCase(), W / 2, 300);
       ctx.font = `400 14px "Atkinson Hyperlegible",system-ui,sans-serif`;
       ctx.fillStyle = '#eaf1f5';
-      wrapLines(ctx, S.hint, W - 60).forEach((ln, i) => ctx.fillText(ln, W / 2, 338 + i * 18));
+      wrapLines(ctx, S.hint, W - 60).forEach((ln, i) => ctx.fillText(ln, W / 2, 332 + i * 18));
       ctx.font = `600 12px ${FONT_M}`;
       ctx.fillStyle = '#7fe0ff';
-      ctx.fillText(`VIND ${Math.round(S.wind.ws)} M/S FRÅN ${pkCompass(S.wind.from)}`, W / 2, 384);
+      ctx.fillText(`VIND ${Math.round(S.wind.ws)} M/S FRÅN ${pkCompass(S.wind.from)}`, W / 2, 378);
+      ctx.fillStyle = 'rgba(234,241,245,.65)';
+      ctx.font = `500 11px ${FONT_M}`;
+      ctx.fillText('SAMMA VINDRIKTNING HELA OMGÅNGEN', W / 2, 398);
       ctx.restore();
     }
-    if (s.phase === 'moored') {
-      ctx.fillStyle = 'rgba(6,14,22,.78)';
-      ctx.fillRect(0, 280, W, 90);
-      centerMsg(ctx, s, W / 2, 312, 38);
-      smallText(ctx, `${S.name} på ${fmtTime(s.times[s.times.length - 1] * 1000)}`, W / 2, 348, 'center', 0.95, 14);
+    if (s.phase === 'lines' || s.phase === 'moored') {
+      ctx.fillStyle = 'rgba(6,14,22,.72)';
+      ctx.fillRect(0, 286, W, 84);
+      centerMsg(ctx, s, W / 2, 314, s.phase === 'lines' ? 30 : 38);
+      smallText(ctx, `${S.name} på ${fmtTime(s.times[s.times.length - 1] * 1000)}`, W / 2, 350, 'center', 0.95, 14);
     }
     if (s.phase === 'crash') {
       ctx.fillStyle = 'rgba(6,14,22,.78)';
@@ -1575,5 +1712,5 @@ const parkera = {
 const GAME_LOGIC = { kryss, slalom, fortoj, parkera };
 
 if (typeof module !== 'undefined') {
-  module.exports = { GAME_LOGIC, rng, hashStr, fmtTime, fmtNum, angDiff, KRY, FT, SL, slSpeed, shoreW, PK, PK_HULL, pkBuild, pkPhysics, pkWind, polysOverlap, placePts, rectPts, hullPts, pkInside };
+  module.exports = { GAME_LOGIC, rng, hashStr, fmtTime, fmtNum, angDiff, KRY, FT, SL, slSpeed, shoreW, PK, PK_HULL, pkBuild, pkPhysics, pkWind, polysOverlap, placePts, rectPts, hullPts, pkInBerth, pkGap, pkIdeal, pkAligned };
 }

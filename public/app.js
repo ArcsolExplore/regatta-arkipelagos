@@ -124,10 +124,10 @@
       unit: 'time', better: 'low',
       pitch: 'Fem hamnmanövrar i olika vind: långsides, förut in, backa in och fler. Snabbast tid vinner, men en enda kontakt underkänner försöket.',
       how: [
-        ['Roder', 'Dra längs linjen till vänster. Rodret stannar där du släpper och snäpper till midskepps nära mitten.'],
-        ['Gas', 'Spaken till höger: uppåt är fram, nedåt är back, mitten är neutral. Rodret biter bara när vatten strömmar förbi.'],
-        ['Vind', 'Vinden driver båten i sidled och vrider fören. Ju hårdare det blåser, desto tidigare måste du hålla emot.'],
-        ['Förtöj', 'Lägg båten helt inne i den gula rutan, rätt vänd, och stanna. Rör du brygga eller båt är försöket underkänt.'],
+        ['Roder', 'Dra längs linjen till vänster. Ratten vrider drevet och styr både framåt och bakåt, men bara när båten rör sig eller du ger gas. Den stannar där du släpper.'],
+        ['Gas', 'Spaken till höger: uppåt är fram, nedåt är back, mitten är neutral. Båten är tung, så börja bromsa i god tid. En kort gasstöt med ratten ute svänger aktern.'],
+        ['Vind', 'Samma vindriktning hela omgången, men det blåser mer för varje scen. Vinden driver båten i sidled och vrider fören, mest när du står still.'],
+        ['Förtöj', 'Lägg båten i rutan, nära bryggan, rätt vänd och i låg fart. Då går tamparna i land och drar in den. Rör du brygga eller båt är försöket underkänt.'],
       ],
     },
   };
