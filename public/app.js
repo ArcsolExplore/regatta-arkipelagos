@@ -42,6 +42,12 @@
     },
   };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Samma städning av namn som servern gör (api/_shared.js), så att namnen alltid matchar.
+  function cleanName(n) {
+    if (typeof n !== 'string') return '';
+    const s = n.normalize('NFC').replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cs}<>]/gu, '').replace(/\s+/g, ' ').trim();
+    return Array.from(s).slice(0, 20).join('').trim();
+  }
   function slug(n) {
     // Skiftläge och mellanrum spelar ingen roll, men å, ä och ö skiljer namn åt (Åsa är inte Asa).
     return String(n).normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spelare';
@@ -88,14 +94,14 @@
   const GAMES = {
     kryss: {
       ...GAME_LOGIC.kryss,
-      title: 'Kryssbanan', flag: 'P', signal: 'Signal P: förberedelsesignal',
+      title: 'Kryssbanan', flag: 'P', signal: 'Signal P: förberedelsesignal i kappsegling',
       unit: 'time', better: 'low',
-      pitch: 'Kryssa upp till bojen, runda den och lens hem i mål. Snabbast tid vinner.',
+      pitch: 'Kryssa upp till bojen, runda den och länsa hem i mål. Snabbast tid vinner.',
       how: [
         ['◀ ▶', 'Styr båten. Rakt mot vinden står du still, så kryssa i sicksack.'],
-        ['Skot', 'Dra reglaget. Fladdrar seglet, skota hem. Går det trögt, släpp ut. Trim-mätaren visar hur bra det sitter.'],
+        ['Skot', 'Dra reglaget. Fladdrar seglet: skota hem. Går båten trögt: fira på skotet. Trimmätaren visar hur bra det sitter.'],
         ['SLAG', 'Tryck i samma stund som du vänder genom vinden. Perfekt tajmat ger en rejäl fartökning. Trycker du för tidigt låses knappen en kort stund.'],
-        ['Banan', 'Korsa linjen uppåt, runda den orange bojen och korsa linjen igen.'],
+        ['Banan', 'Korsa linjen uppåt, runda den orange bojen och korsa linjen igen. Efter fem minuter på banan är tiden ute.'],
       ],
     },
     slalom: {
@@ -105,7 +111,7 @@
       pitch: 'Full gas mellan skären. Farten ökar hela tiden, och gula bojar ger bonus.',
       how: [
         ['◀ ▶', 'Håll knapparna, eller tryck på vänster och höger halva av vattnet, för att styra.'],
-        ['Undvik', 'Skär och land. En träff och rundan är slut.'],
+        ['Undvik', 'Skär och land. En träff och försöket är slut.'],
         ['Bojar', 'Gula bojar ger 25 poäng extra. Varje meter ger en poäng.'],
       ],
     },
@@ -115,7 +121,7 @@
       unit: 'points', better: 'high',
       pitch: 'Fem angöringar mot bryggan. Backa i rätt ögonblick och stanna så nära du vågar.',
       how: [
-        ['BACKA', 'Håll inne för att bromsa. Rundan slutar när båten står still.'],
+        ['BACKA', 'Håll inne för att backa. Angöringen är klar när båten nuddar bryggan eller står still.'],
         ['Poäng', '100 poäng för en mjuk angöring. Varje decimeter kvar till bryggan kostar en poäng.'],
         ['Krasch', 'Kommer du in för fort blir det noll.'],
         ['Vind', 'Medvind och motvind ändrar hur långt båten glider.'],
@@ -123,56 +129,56 @@
     },
     parkera: {
       ...GAME_LOGIC.parkera,
-      title: 'Förtöja 2', short: 'Parkera', flag: 'D', signal: 'Signal D: håll undan, jag manövrerar med svårighet',
+      title: 'Hamnmanövern', flag: 'D', signal: 'Signal D: håll undan, jag manövrerar med svårighet',
       unit: 'time', better: 'low',
       pitch: 'Fem hamnmanövrar i olika vind: långsides, förut in, backa in och fler. Snabbast tid vinner, men en enda kontakt underkänner försöket.',
       how: [
         ['Roder', 'Dra längs linjen till vänster. Ratten vrider drevet och styr både framåt och bakåt, men bara när båten rör sig eller du ger gas. Den stannar där du släpper.'],
         ['Gas', 'Spaken till höger: uppåt är fram, nedåt är back, mitten är neutral. Båten är tung, så börja bromsa i god tid. En kort gasstöt med ratten ute svänger aktern.'],
-        ['Vind', 'Samma vindriktning hela omgången, men det blåser mer för varje scen. Vinden driver båten i sidled och vrider fören, mest när du står still.'],
+        ['Vind', 'Samma vindriktning hela försöket, men det blåser mer för varje manöver. Vinden driver båten i sidled och vrider fören, mest när du står still.'],
         ['Förtöj', 'Lägg hela båten i den gula rutan, rätt vänd och i låg fart. Då går tamparna i land och drar in den. Rör du brygga eller båt är försöket underkänt.'],
       ],
     },
     navigator: {
       ...GAME_LOGIC.navigator,
-      title: 'Navigatören', short: 'Navig', flag: 'N', signal: 'Signal N: nej',
+      title: 'Navigatören', flag: 'N', signal: 'Signal N: nej',
       unit: 'time', better: 'low',
       pitch: 'Rita rutten på sjökortet förbi märke 1 och 2 och in i hamn. Snabb penna och kort rutt vinner.',
       how: [
         ['Rita', 'Dra med fingret från båten. Rutten måste passera genom ringen runt märke 1, sedan märke 2, och sluta i hamnen.'],
-        ['Tiden', 'Klockan går medan du ritar. Till det läggs tiden båten behöver till sjöss, så en kort rutt lönar sig.'],
-        ['Grund', 'Gula öar och streckade grund är förbjudna. Rör linjen dem tar draget slut och du får 3 sekunder extra.'],
+        ['Tiden', 'Klockan går medan du ritar. Till det läggs tiden båten behöver till sjöss, så en kort rutt lönar sig. Efter tre minuter är tiden ute.'],
+        ['Grund', 'Gula öar och streckade grund är förbjudna. Om linjen nuddar dem tar draget slut och du får 3 sekunder extra.'],
         ['Ångra', 'Tar bort senaste draget. Fortsätt rita från linjens slut.'],
       ],
     },
     fyr: {
       ...GAME_LOGIC.fyr,
-      title: 'Fyrkaraktären', short: 'Fyr', flag: 'L', signal: 'Signal L: stoppa genast',
+      title: 'Fyrkaraktären', flag: 'L', signal: 'Signal L: stoppa genast',
       unit: 'points', better: 'high',
       pitch: 'Fyren blinkar sin karaktär. Blinka tillbaka exakt samma rytm. Tio fyrar, tre liv.',
       how: [
-        ['Titta', 'Fyren visar sin karaktär två gånger, med den riktiga beteckningen från sjökortet.'],
+        ['Titta', 'Fyren visar sin karaktär två gånger, med en förenklad beteckning som på sjökortet.'],
         ['Blinka', 'Håll knappen, eller var som helst på skärmen, så länge ljuset ska lysa. Kort och lång blixt måste stämma.'],
         ['Rytm', 'Pauserna räknas också. Ju närmare fyrens takt, desto fler poäng, upp till 100 per fyr.'],
-        ['Liv', 'Fel antal blixtar eller fel rytm kostar ett liv. Tre liv per försök.'],
+        ['Liv', 'Fel antal blixtar, fel rytm eller ingen blixt inom sex sekunder kostar ett liv. Tre liv per försök.'],
       ],
     },
     tamp: {
       ...GAME_LOGIC.tamp,
-      title: 'Kasta tamp', short: 'Tamp', flag: 'T', signal: 'Signal T: håll undan för mig',
+      title: 'Kasta tamp', flag: 'T', signal: 'Signal T: håll undan för mig',
       unit: 'points', better: 'high',
       pitch: 'Fem kast med förtöjningstampen mot pollaren på bryggan. Vinden tar tag i öglan.',
       how: [
-        ['Svep', 'Dra fingret uppåt och släpp. Ju snabbare svep, desto längre kast. Sned riktning ger sned kast.'],
+        ['Svep', 'Dra fingret uppåt och släpp. Ju snabbare svep, desto längre kast. Sned riktning ger sned kast. Kastar du inte inom 20 sekunder räknas kastet som missat.'],
         ['Vind', 'Vimpeln och texten visar vinden. Sikta lite mot vinden så driver öglan in.'],
         ['Poäng', 'Öglan runt pollaren ger 100. Annars färre poäng ju längre bort. I vattnet blir det noll.'],
       ],
     },
     grill: {
       ...GAME_LOGIC.grill,
-      title: 'Grillmästaren', short: 'Grill', flag: 'G', signal: 'Signal G: jag behöver lots',
+      title: 'Grillmästaren', flag: 'G', signal: 'Signal G: jag behöver lots',
       unit: 'points', better: 'high',
-      pitch: 'Sextio sekunder vid klippgrillen. Vänd i rätt stund och servera perfekt stekt på båda sidor.',
+      pitch: 'Sextio sekunder vid klippgrillen. Vänd i rätt stund och servera perfekt grillat på båda sidor.',
       how: [
         ['Vänd', 'Tryck på maten. Kanten visar undersidan, ytan visar ovansidan.'],
         ['Servera', 'Håll kvar tills ringen är full. Båda sidor perfekta ger 100 poäng, och perfekta i rad ger bonus.'],
@@ -181,18 +187,18 @@
     },
     mas: {
       ...GAME_LOGIC.mas,
-      title: 'Måsattacken', short: 'Mås', flag: 'A', signal: 'Signal A: dykare nere, håll undan',
+      title: 'Måsattacken', flag: 'A', signal: 'Signal A: jag har dykare nere, håll undan',
       unit: 'points', better: 'high',
       pitch: 'Måsarna vill åt räksmörgåsen. Tryck eller svep bort dem i sextio sekunder, och spara så många räkor du kan.',
       how: [
         ['Schas', 'Tryck på en mås eller svep över den. Flera i snabb följd ger upp till fyra gånger poängen.'],
         ['Truten', 'Den stora mörka truten behöver två tryck. Dykande måsar kommer snabbt och rakt.'],
-        ['Räkorna', 'Når en mås smörgåsen tar den en räka. Varje räka kvar när tiden är slut ger 25 poäng. Tar alla tio slut är rundan över.'],
+        ['Räkorna', 'Når en mås smörgåsen tar den en räka. Varje räka kvar när tiden är slut ger 25 poäng. Tar alla tio slut är försöket över.'],
       ],
     },
     svall: {
       ...GAME_LOGIC.svall,
-      title: 'Svallvågen', short: 'Svall', flag: 'O', signal: 'Signal O: man över bord',
+      title: 'Svallvågen', flag: 'O', signal: 'Signal O: man över bord',
       unit: 'points', better: 'high',
       pitch: 'Waxholmsbåten och taxibåtarna passerar. Luta telefonen så att kaffekoppen står kvar på bordet.',
       how: [
@@ -203,19 +209,19 @@
     },
     lots: {
       ...GAME_LOGIC.lots,
-      title: 'Lotsen i dimman', short: 'Lots', flag: 'H', signal: 'Signal H: jag har lots ombord',
+      title: 'Lotsen i dimman', flag: 'H', signal: 'Signal H: jag har lots ombord',
       unit: 'time', better: 'low',
       pitch: 'Fyra sekunder att memorera farleden, sedan kommer dimman. Lys efter märkena och lotsa båten fram till fyren.',
       how: [
         ['Minns', 'Kartan syns i fyra sekunder. Ta in skären och vägen förbi märke 1 och 2 till fyren.'],
         ['◀ ▶', 'Båten går med jämn fart. Du styr bara. Märkena blinkar genom dimman: rött en gång, grönt två gånger.'],
         ['TUTA', 'Mistluren lättar dimman en kort stund men kostar 2 sekunder.'],
-        ['Grund', 'Skrovet mot sten ger 5 sekunder extra, och båten backas en bit.'],
+        ['Grund', 'Skrovet mot sten ger 5 sekunder extra, och båten backas en bit. Efter tre minuter är tiden ute.'],
       ],
     },
     // Startlinjen spelas live i ett rum; här finns bara det som topplistan behöver.
     start: {
-      id: 'start', title: 'Startlinjen', short: 'Start', flag: 'P', unit: 'ms', better: 'low', live: true,
+      id: 'start', title: 'Startlinjen', flag: 'P', unit: 'ms', better: 'low', live: true,
     },
   };
   // Regattan räknar de elva solospelen. Startlinjen har en egen lista men ger inga Regatta-poäng.
@@ -251,7 +257,19 @@
     local: LS.get('ra_local', { round: { n: 1, seed: DEFAULT_SEED, startedAt: null }, scores: [] }),
     lastShared: 0,
     polling: false,
+    everShared: false, // har den gemensamma listan svarat någon gång under det här besöket?
   };
+  // Senast kända gemensamma omgång. Startar appen utan nät spelar man vidare på den (R1-APP-1).
+  const SHARED_CACHE_MS = 12 * 3600e3;
+  {
+    const c = LS.get('ra_shared_cache', null);
+    if (c && c.round && Number.isInteger(c.round.n) && Date.now() - c.at < SHARED_CACHE_MS) {
+      Sync.round = { n: c.round.n, seed: c.round.seed >>> 0, startedAt: c.round.startedAt || null };
+      Sync.cached = true;
+    }
+  }
+  // Lokala omgångar har fasta banor, så två telefoner på samma lokala omgång seglar samma bana.
+  const localSeed = (n) => (n === 1 ? DEFAULT_SEED : hashStr('omgang:' + n) >>> 0);
   if (!Sync.local || !Array.isArray(Sync.local.scores) || !Sync.local.round) {
     Sync.local = { round: { n: 1, seed: DEFAULT_SEED, startedAt: null }, scores: [] };
   }
@@ -279,20 +297,33 @@
     return [...map.values()];
   }
 
+  // Varje anrop får en tidsgräns: ett svar som aldrig kommer får inte frysa topplistan.
+  let reqSeq = 0, writeSeq = 0;
   async function api(method, body) {
-    const res = await fetch(API + (method === 'GET' ? '?t=' + Date.now() : ''), {
-      method,
-      cache: 'no-store',
-      headers: body ? { 'content-type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* tomt svar */ }
-    return { status: res.status, data };
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), method === 'GET' ? 8000 : 10000);
+    const seq = ++reqSeq;
+    try {
+      const res = await fetch(API + (method === 'GET' ? '?t=' + Date.now() : ''), {
+        method,
+        cache: 'no-store',
+        headers: body ? { 'content-type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: ctl.signal,
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* tomt svar */ }
+      if (method !== 'GET' && res.ok) writeSeq = seq;
+      return { status: res.status, data, seq };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   function applyState(data) {
     if (!data || !data.round) return;
+    Sync.everShared = true;
+    LS.set('ra_shared_cache', { round: data.round, at: Date.now() });
     const prevN = Sync.round.n;
     Sync.round = { n: data.round.n | 0 || 1, seed: data.round.seed >>> 0 || DEFAULT_SEED, startedAt: data.round.startedAt || null };
     Sync.shared = Array.isArray(data.scores) ? data.scores.filter(validRec) : [];
@@ -308,22 +339,21 @@
     if (Sync.polling) return;
     Sync.polling = true;
     try {
-      const { status, data } = await api('GET');
+      const { status, data, seq } = await api('GET');
       if (status === 200 && data) {
         Sync.mode = 'shared';
-        applyState(data);
+        // Ett långsamt svar som skickades före en sparning får inte skriva över det nya (R1-APP-9).
+        if (seq > writeSeq) applyState(data);
         // Skicka väntande resultat varje gång servern svarar, inte bara när nätet kommer tillbaka.
         if (Sync.local.scores.some((r) => r.src === 'pending')) await flushPending();
-      } else if (status === 503 || status === 404) {
+      } else if (status === 503 && data && data.error === 'no_store' && !Sync.everShared && !Sync.cached) {
+        // Servern säger själv att det inte finns någon gemensam lista: då är appen lokal på riktigt.
         goLocal();
-      } else if (Sync.mode === 'shared') {
-        Sync.mode = 'offline';
-      } else if (Sync.mode === 'connecting') {
-        goLocal();
+      } else {
+        netDown();
       }
     } catch (e) {
-      if (Sync.mode === 'shared') Sync.mode = 'offline';
-      else if (Sync.mode === 'connecting') goLocal();
+      netDown();
     } finally {
       Sync.polling = false;
       renderAll();
@@ -332,6 +362,13 @@
   function goLocal() {
     Sync.mode = 'local';
     Sync.round = Sync.local.round;
+  }
+  // Nätet eller servern svarar inte. Har vi sett den gemensamma listan (nu eller nyligen) väntar
+  // resultaten på nätet i stället för att hamna i en lokal omgång som ingen annan ser.
+  function netDown() {
+    if (Sync.mode === 'local') return;
+    if (Sync.everShared || Sync.cached) Sync.mode = 'offline';
+    else if (Sync.mode === 'connecting') goLocal();
   }
 
   let flushing = false;
@@ -347,8 +384,8 @@
         } catch (e) {
           return; // nätet borta igen: försök vid nästa svar
         }
-        // 200 = sparat, 409 = omgången har bytts, 400 = ogiltigt. I alla tre fallen är det klart.
-        if (status === 200 || status === 409 || status === 400) {
+        // 200 = sparat, 409 = omgången har bytts, 4xx = ogiltigt. I alla fallen är det klart.
+        if (status === 200 || (status >= 400 && status < 500 && status !== 429)) {
           Sync.local.scores = Sync.local.scores.filter((x) => x !== r);
           persistLocal();
           if (data && data.state) applyState(data.state);
@@ -364,6 +401,7 @@
     // Spelet kördes på en omgång som inte längre gäller: banan var en annan, så resultatet räknas inte.
     if (n !== Sync.round.n) return { improved: false, where: 'stale', prev: null };
     if (!inRange(game, score)) return { improved: false, where: 'rejected', prev: null };
+    name = cleanName(name) || name;
     const key = game + ':' + slug(name);
     const prev = allScores().find((r) => r.game + ':' + slug(r.name) === key) || null;
     const improved = !prev || isBetter(game, score, prev.score);
@@ -376,17 +414,15 @@
           if (status === 200) {
             Sync.mode = 'shared';
             if (data && data.state) applyState(data.state);
-            return { improved: true, where: 'shared', prev };
+            // Servern avgör om det blev ett personbästa (den ser alla telefoners resultat).
+            const improvedSrv = data && typeof data.improved === 'boolean' ? data.improved : true;
+            return { improved: improvedSrv, where: 'shared', prev };
           }
           if (status === 409) {
             if (data && data.state) applyState(data.state);
             return { improved: false, where: 'stale', prev };
           }
-          if (status === 400) return { improved: false, where: 'rejected', prev };
-          if (status === 503) {
-            goLocal();
-            break;
-          }
+          if (status >= 400 && status < 500 && status !== 429) return { improved: false, where: 'rejected', prev };
           if (status >= 500 && attempt === 0) {
             await sleep(400 + Math.random() * 600);
             continue;
@@ -412,7 +448,7 @@
 
   async function newRound() {
     if (Sync.mode === 'local') {
-      Sync.local.round = { n: Sync.round.n + 1, seed: (Math.random() * 4294967295) >>> 0, startedAt: Date.now() };
+      Sync.local.round = { n: Sync.round.n + 1, seed: localSeed(Sync.round.n + 1), startedAt: Date.now() };
       Sync.round = Sync.local.round;
       persistLocal();
       renderAll();
@@ -487,10 +523,10 @@
 
   function renderSyncChip() {
     const chip = $('#syncChip');
-    const labels = { connecting: 'Ansluter', shared: 'Delad', offline: 'Offline', local: 'Lokal' };
+    const labels = { connecting: 'ansluter', shared: 'gemensam', offline: 'offline', local: 'bara här' };
     chip.dataset.state = Sync.mode;
-    $('#syncLabel').textContent = `${labels[Sync.mode]}, omgång ${Sync.round.n}`;
-    chip.setAttribute('aria-label', `Topplistan: ${labels[Sync.mode]}, omgång ${Sync.round.n}. Visa mer.`);
+    $('#syncLabel').textContent = `Omgång ${Sync.round.n} · ${labels[Sync.mode]}`;
+    chip.setAttribute('aria-label', `Topplistan: omgång ${Sync.round.n}, ${labels[Sync.mode]}. Visa mer.`);
   }
 
   function rowEl(rank, name, value, meta, isMe, extraTag) {
@@ -509,8 +545,10 @@
     root.append(
       h('div', { class: 'hero' },
         h('span', { class: 'eyebrow', text: `Omgång ${Sync.round.n}` }),
-        h('h1', { text: 'Elva spel. En topplista.' }),
-        h('p', { class: 'lede', text: 'Alla spelar på sin egen telefon. Ditt bästa resultat i varje spel räknas, och placeringarna ger poäng i Regattan. Vill ni mötas på riktigt finns livespelen och spelen runt bordet.' })),
+        h('h1', { text: Sync.mode === 'local' ? 'Elva spel. Ställningen på den här telefonen.' : 'Elva spel. En topplista.' }),
+        h('p', { class: 'lede', text: Sync.mode === 'local'
+          ? 'Resultaten sparas bara på den här telefonen. Telefoner på samma omgång får samma banor. Skicka runt telefonen, eller lägg in resultat för hand.'
+          : 'Alla spelar på sin egen telefon. Ditt bästa resultat i varje spel räknas, och placeringarna ger poäng i Regattan. Vill ni mötas på riktigt finns livespelen och spelen runt bordet.' })),
       h('div', { class: 'player' },
         name
           ? h('div', null, h('div', { class: 'muted', text: 'Du spelar som' }), h('strong', { text: name }))
@@ -534,7 +572,7 @@
             h('div', { class: 'stats' },
               h('span', null, h('span', { class: 'lbl', text: 'Ditt bästa ' }), h('b', { text: mine ? fmtScore(id, mine.score) : '–' })),
               h('span', null, h('span', { class: 'lbl', text: 'Leder ' }), lead ? h('b', { text: `${lead.name} ${fmtScore(id, lead.score)}` }) : h('b', { text: 'ingen än' }))),
-            h('button', { class: 'btn', type: 'button', onclick: () => startGame(id) }, 'Spela'))));
+            h('button', { class: 'btn', type: 'button', 'aria-label': `Spela ${g.title}`, onclick: () => startGame(id) }, 'Spela'))));
     }
     const table = regattaTable().slice(0, 3);
     const top = h('div', { class: 'section' },
@@ -556,7 +594,7 @@
       h('div', { class: 'section-head' }, h('h2', { text: 'Runt bordet' }), h('span', { class: 'eyebrow', text: 'En telefon' })),
       h('a', { class: 'teaser', href: '#kort' },
         h('span', { svg: flagSVG('K', 54, 36) }),
-        h('span', null, h('h3', { text: 'Bordet' }), h('p', { text: 'Kortleken med elva kategorier, Tickande sjömina och Pannkortet. Skicka runt telefonen.' })))));
+        h('span', null, h('h3', { text: 'Bordet' }), h('p', { text: `Kortleken med ${CARD_CATS.length} kategorier, Tickande sjömina och Pannkortet. Skicka runt telefonen.` })))));
   }
 
   function renderBoard() {
@@ -568,8 +606,7 @@
 
     root.append(h('div', { class: 'hero' }, h('span', { class: 'eyebrow', text: `Omgång ${Sync.round.n}${startedTxt}` }), h('h1', { text: 'Topplista' })));
 
-    const short = { kryss: 'Kryss', slalom: 'Slalom', fortoj: 'Förtöj' };
-    const tabs = [['regatta', 'Regatta'], ...BOARD_ORDER.map((g) => [g, short[g] || GAMES[g].short || GAMES[g].title])];
+    const tabs = [['regatta', 'Regatta'], ...BOARD_ORDER.map((g) => [g, GAMES[g].title])];
     const seg = h('div', { class: 'seg scroll', role: 'group', 'aria-label': 'Välj lista' },
       tabs.map(([k, label]) => h('button', { type: 'button', 'aria-pressed': String(boardTab === k), onclick: () => { boardTab = k; renderBoard(); } }, label)));
     root.append(seg);
@@ -643,15 +680,15 @@
     const input = h('input', { id: 'nameInput', type: 'text', maxlength: '20', autocomplete: 'nickname', value: getName(), enterkeyhint: 'done' });
     const err = h('p', { class: 'err', hidden: true });
     const save = () => {
-      const n = input.value.trim().replace(/\s+/g, ' ');
+      const n = cleanName(input.value);
       if (!/[\p{L}\p{N}]/u.test(n)) {
         err.textContent = 'Skriv ett namn med minst en bokstav eller siffra.';
         err.hidden = false;
         return;
       }
       setName(n);
-      $('#sheet').hidden = true;
       sheetClose = null;
+      closeSheet();
       renderAll();
       if (then) then();
     };
@@ -699,7 +736,7 @@
         h('div', { class: 'field' }, h('label', { for: 'manGame', text: 'Spel' }), sel),
         h('div', { class: 'field' }, h('label', { for: 'manScore', text: 'Resultat' }), scoreIn), hint, err],
       [{ label: 'Spara', onClick: async () => {
-        const n = nameIn.value.trim().replace(/\s+/g, ' ');
+        const n = cleanName(nameIn.value);
         const sc = parseScore(sel.value, scoreIn.value);
         if (!/[\p{L}\p{N}]/u.test(n)) { err.textContent = 'Skriv ett namn med minst en bokstav eller siffra.'; err.hidden = false; return; }
         if (sc == null) { err.textContent = GAMES[sel.value].unit === 'time' ? 'Skriv tiden som 0:24,3.' : 'Skriv poängen som en siffra.'; err.hidden = false; return; }
@@ -711,10 +748,11 @@
         }
         const out = await saveScore(sel.value, n, sc);
         if (out.where === 'rejected') { err.textContent = 'Servern godtog inte resultatet.'; err.hidden = false; return; }
+        if (out.where === 'stale') { err.textContent = 'Omgången har bytts. Resultatet sparades inte.'; err.hidden = false; return; }
         closeSheet();
         boardTab = sel.value;
         renderAll();
-        if (!out.improved && out.prev) toastSheet('Inget nytt rekord', `${n} har redan ${fmtScore(sel.value, out.prev.score)} i ${GAMES[sel.value].title}.`);
+        if (!out.improved && out.prev) toastSheet('Inget nytt personbästa', `${n} har redan ${fmtScore(sel.value, out.prev.score)} i ${GAMES[sel.value].title}.`);
       } }, { label: 'Avbryt', kind: 'ghost', onClick: closeSheet }]);
   }
   function toastSheet(title, text) {
@@ -723,10 +761,10 @@
 
   $('#syncChip').addEventListener('click', () => {
     const texts = {
-      shared: ['Delad topplista', 'Alla som öppnar den här adressen ser samma topplista. Resultat sparas direkt och listan uppdateras av sig själv.'],
+      shared: ['Gemensam topplista', 'Alla som öppnar den här adressen ser samma topplista. Resultat sparas direkt och listan uppdateras av sig själv.'],
       connecting: ['Ansluter', 'Appen letar efter den delade topplistan.'],
       offline: ['Offline just nu', 'Telefonen når inte topplistan. Nya resultat sparas här och skickas när nätet är tillbaka. De märks "väntar" på listan.'],
-      local: ['Bara den här telefonen', 'Den delade topplistan är inte igång, så resultaten sparas på den här telefonen. Ni kan skicka runt telefonen, eller lägga in resultat för hand senare.'],
+      local: ['Bara den här telefonen', 'Den gemensamma topplistan är inte igång här, så resultaten sparas bara på den här telefonen. Andras telefoner ser dem inte. Ni kan skicka runt telefonen, eller lägga in resultat för hand senare.'],
     };
     const [t, b] = texts[Sync.mode];
     openSheet(t, [h('p', { text: b }), h('p', { class: 'note', text: `Omgång ${Sync.round.n}.` })], [{ label: 'OK', onClick: closeSheet }]);
@@ -838,6 +876,30 @@
 
   function loop(now) {
     if (!Play.running) return;
+    try {
+      frame(now);
+    } catch (err) {
+      crashed(err, 'loop');
+    }
+  }
+  // Ett fel i ett spel får aldrig lämna en frusen duk: visa en ruta och rapportera felet (R1-LOG2-1).
+  function crashed(err, phase) {
+    try { stopGame(); } catch (e) { /* ok */ }
+    Play.ended = true;
+    console.error(err);
+    if (window.RA_REPORT) window.RA_REPORT({ kind: 'engine', game: Play.game && Play.game.id, phase, err });
+    const g = Play.game;
+    const p = $('#resultPanel');
+    $('#introPanel').hidden = true;
+    p.replaceChildren(h('div', { class: 'panel' },
+      h('h2', { text: 'Hoppsan, spelet kraschade' }),
+      h('p', { text: 'Försöket räknas inte. Felet har skickats så att det kan rättas.' }),
+      h('div', { class: 'actions' },
+        g ? h('button', { class: 'btn', type: 'button', onclick: () => startGame(g.id) }, 'Börja om') : null,
+        h('button', { class: 'btn ghost', type: 'button', onclick: quitGame }, 'Startsidan'))));
+    p.hidden = false;
+  }
+  function frame(now) {
     // Spelets tid följer verklig tid även på långsamma telefoner; stegen delas upp i 1/120 s.
     // Taket på 0,25 s gäller bara efter en paus (t.ex. när appen legat i bakgrunden).
     const dt = Math.min(0.25, (now - Play.last) / 1000);
@@ -1035,6 +1097,17 @@
     else if (c === 'Space' || c === 'Enter') keys.hold = false;
   });
 
+  // Släpp allt som hålls när fönstret tappar fokus: annars fastnar en tangent eller knapp (R1-APP-7).
+  function releaseAll() {
+    Object.assign(keys, { left: false, right: false, hold: false });
+    Object.assign(Play.input, { left: false, right: false, hold: false, cl: false, cr: false, ch: false });
+    for (const id of canvasPointers.keys()) if (wantsPointer()) Play.input.events.push({ type: 'up', id, x: 0, y: 0, t: performance.now(), cancelled: true });
+    canvasPointers.clear();
+    document.querySelectorAll('#ctl .on').forEach((el) => el.classList.remove('on'));
+  }
+  window.addEventListener('blur', releaseAll);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') releaseAll(); });
+
   function resetInput() {
     Object.assign(Play.input, { left: false, right: false, hold: false, boostPressed: false, cl: false, cr: false, ch: false, rudder: 0, throttle: 0, events: [], tiltOk: false, tiltX: 0, tiltY: 0 });
     Object.assign(keys, { left: false, right: false, hold: false });
@@ -1054,12 +1127,18 @@
     Play.input.tiltY = clamp((y - Tilt.base[1]) / 25, -1.5, 1.5);
     Play.input.tiltOk = true;
   }
+  // iOS kräver att man ber om lov, och det måste ske i själva trycket på Kör. Spelet väntar på svaret,
+  // så att klockan inte går bakom dialogrutan (R1-APP-6).
+  function tiltPermission() {
+    try {
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        return DeviceOrientationEvent.requestPermission().then((r) => r === 'granted', () => false);
+      }
+    } catch (e) { /* inget stöd */ }
+    return Promise.resolve(true);
+  }
   function tiltOn() {
     Tilt.base = null;
-    // iOS kräver att man ber om lov, och det måste ske i själva trycket på Kör.
-    try {
-      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') DeviceOrientationEvent.requestPermission().catch(() => {});
-    } catch (e) { /* inget stöd */ }
     if (!Tilt.on) window.addEventListener('deviceorientation', onOrient);
     Tilt.on = true;
   }
@@ -1079,7 +1158,14 @@
     Play.running = false;
     cancelAnimationFrame(Play.raf);
     Play.round = Sync.round.n; // resultatet hör till omgången spelet startade i
-    Play.s = g.create(seedFor(id));
+    Play.seed = seedFor(id);
+    try {
+      Play.s = g.create(Play.seed);
+    } catch (err) {
+      $('#play').hidden = false;
+      crashed(err, 'create');
+      return;
+    }
     resetInput();
     Play.input.skot = 0.45;
     $('#hudTitle').textContent = g.title;
@@ -1088,20 +1174,45 @@
     $('#play').hidden = false;
     document.body.style.overflow = 'hidden';
     resize();
-    drawFrame();
-    updateHud();
+    try {
+      drawFrame();
+      updateHud();
+    } catch (err) {
+      crashed(err, 'draw');
+      return;
+    }
     showIntro(g);
   }
 
   function showIntro(g) {
     const p = $('#introPanel');
-    const go = h('button', { class: 'btn', type: 'button', onclick: () => { p.hidden = true; if (g.tilt) tiltOn(); run(); } }, 'Kör');
+    const go = h('button', { class: 'btn', type: 'button', onclick: () => {
+      if (go.disabled) return;
+      // Har omgången bytts medan introt var öppet? Då gäller den nya banan (R1-APP-3).
+      if (Sync.round.n !== Play.round || seedFor(g.id) !== Play.seed) {
+        Play.round = Sync.round.n;
+        Play.seed = seedFor(g.id);
+        try { Play.s = g.create(Play.seed); } catch (err) { crashed(err, 'create'); return; }
+      }
+      if (!g.tilt) { p.hidden = true; run(); return; }
+      const ask = tiltPermission(); // anropas direkt i trycket
+      go.disabled = true;
+      go.textContent = 'Väntar på tillåtelse…';
+      ask.then((ok) => {
+        if (Play.game !== g || Play.running) return;
+        p.hidden = true;
+        if (ok) tiltOn();
+        run();
+      });
+    } }, 'Kör');
     p.replaceChildren(h('div', { class: 'panel' },
-      h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: flagSVG(g.flag, 48, 32) }), h('div', null, h('div', { class: 'signal', text: `Omgång ${Sync.round.n}, samma bana för alla` }), h('h2', { text: g.title }))),
+      h('div', { class: 'game-head' }, h('span', { class: 'flag-wrap', svg: flagSVG(g.flag, 48, 32) }), h('div', null, h('div', { class: 'signal', text: Sync.mode === 'local' ? `Omgång ${Sync.round.n} · bara på den här telefonen` : `Omgång ${Sync.round.n} · samma bana för alla` }), h('h2', { text: g.title }))),
       h('ul', { class: 'how' }, g.how.map(([k, t]) => h('li', null, h('b', { text: k }), h('span', { text: t })))),
       h('div', { class: 'actions' }, go, h('button', { class: 'btn ghost', type: 'button', onclick: quitGame }, 'Tillbaka'))));
     p.hidden = false;
-    setTimeout(() => go.focus(), 30);
+    // Fokus utan att rulla: annars öppnar introt längst ner och titeln syns inte (R1-UI-1).
+    p.scrollTop = 0;
+    setTimeout(() => { go.focus({ preventScroll: true }); p.scrollTop = 0; }, 30);
   }
 
   function run() {
@@ -1111,12 +1222,20 @@
     Play.raf = requestAnimationFrame(loop);
   }
 
+  // Ett löpnummer per begäran: avslutas spelet innan låset hunnit komma släpps det direkt (R1-APP-8).
+  let lockTok = 0;
   async function requestWakeLock() {
+    const t = ++lockTok;
     try {
-      if (navigator.wakeLock) Play.lock = await navigator.wakeLock.request('screen');
+      if (!navigator.wakeLock || Play.lock) return;
+      const l = await navigator.wakeLock.request('screen');
+      if (t !== lockTok || !Play.running) { l.release().catch(() => {}); return; }
+      Play.lock = l;
+      l.addEventListener('release', () => { if (Play.lock === l) Play.lock = null; });
     } catch (e) { /* ingen skärmlåsning */ }
   }
   function releaseWakeLock() {
+    lockTok++;
     try { Play.lock && Play.lock.release(); } catch (e) { /* ok */ }
     Play.lock = null;
   }
@@ -1158,14 +1277,19 @@
     p.replaceChildren(h('div', { class: 'panel' },
       h('div', { class: 'signal', text: g.title }),
       h('h2', { text: res.title }),
-      h('div', { class: 'big-score', text: fmtScore(g.id, res.score) }),
+      h('div', { class: 'big-score', text: res.void ? '–' : fmtScore(g.id, res.score) }),
       h('p', { text: res.detail }),
       pbSlot, rankLine, status,
       h('div', { class: 'actions' },
         h('button', { class: 'btn', type: 'button', onclick: () => startGame(g.id) }, 'Spela igen'),
         h('button', { class: 'btn ghost', type: 'button', onclick: () => { quitGame(); location.hash = '#topplista'; boardTab = g.id; setView('topplista'); renderBoard(); } }, 'Topplista'),
-        h('button', { class: 'btn ghost', type: 'button', onclick: () => { quitGame(); location.hash = '#spel'; } }, 'Meny'))));
+        h('button', { class: 'btn ghost', type: 'button', onclick: () => { quitGame(); location.hash = '#spel'; } }, 'Startsidan'))));
     p.hidden = false;
+    p.scrollTop = 0;
+    if (res.void) {
+      status.textContent = 'Försöket sparas inte.';
+      return;
+    }
 
     const out = await saveScore(g.id, name, res.score, Play.round);
     if (out.where === 'rejected') {
@@ -1249,7 +1373,7 @@
       root.append(
         h('div', { class: 'hero' },
           h('span', { class: 'eyebrow', text: 'Runt bordet' }),
-          h('h1', { text: 'En telefon, hela laget' }),
+          h('h1', { text: 'En telefon, hela bordet' }),
           h('p', { class: 'lede', text: 'Lägg telefonen mitt på bordet eller skicka runt den. Inga konton, ingen topplista, bara skratt.' })),
         window.Table ? window.Table.section() : null,
         h('div', { class: 'section-head' }, h('h2', { text: 'Kortleken' }), h('span', { class: 'eyebrow', text: `${CARD_CATS.length} kategorier` })),
@@ -1297,6 +1421,7 @@
   Play.input = inputProxy; // spelen läser via proxyn
   setView(location.hash.slice(1) || 'spel');
   renderAll(true);
+  window.__raBooted = true;
   poll();
   // Var 5:e sekund mot den delade topplistan; finns den inte, titta bara efter den var 30:e sekund.
   let tick = 0;

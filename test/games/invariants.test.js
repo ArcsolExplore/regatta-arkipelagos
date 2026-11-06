@@ -8,8 +8,8 @@ const { G } = loadGames();
 // Longest a game may run without the player doing anything sensible (game seconds).
 const T_MAX = { kryss: 425, slalom: 60, fortoj: 120, parkera: 900, navigator: 185, fyr: 200, tamp: 140, grill: 62, mas: 62, svall: 62, lots: 186 };
 // Known open bugs (R1-LOG2-4/5, no time limit in Kryssbanan). Remove an entry when its fix lands.
-const KNOWN_FUZZ = { kryss: 'no time limit', navigator: 'no end condition (R1-LOG2-5)', lots: 'no end condition (R1-LOG2-5)' };
-const KNOWN_IDLE = { ...KNOWN_FUZZ, fyr: 'waits forever (R1-LOG2-4)', tamp: 'waits forever for a throw' };
+const KNOWN_FUZZ = {};
+const KNOWN_IDLE = {};
 
 test('registry: every solo game is loaded and ranged on server and client', () => {
   for (const id of SOLO) {
@@ -27,7 +27,9 @@ for (const id of SOLO) {
       for (const frameDt of [1 / 30, 1 / 60, 1 / 144]) {
         const { res, t } = runGame(g, seed, fuzzPolicy(g, seed), { frameDt, maxT: T_MAX[id], draw: frameDt === 1 / 30 });
         assert.ok(res, `${id} seed ${seed} dt ${frameDt.toFixed(4)} ended (ran ${t.toFixed(1)} s)`);
-        assert.ok(inRange(id, res.score), `${id} score ${res.score} in range`);
+        // A void result (time ran out) is shown but never saved.
+        if (res.void) assert.equal(res.score, null);
+        else assert.ok(inRange(id, res.score), `${id} score ${res.score} in range`);
         assert.equal(typeof res.title, 'string');
       }
     }

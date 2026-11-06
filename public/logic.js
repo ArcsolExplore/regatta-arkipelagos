@@ -282,9 +282,9 @@ function granite(ctx, path) {
 }
 
 /* =====================================================================
-   KRYSSBANAN – kryssa upp till bojen, runda, lensa hem.
+   KRYSSBANAN – kryssa upp till bojen, runda, länsa hem.
    ===================================================================== */
-const KRY = { W: 400, H: 720, LY: 612, LX0: 72, LX1: 328, BX: 200, BY: 118, ZONE: 140, RESET: 185, MAX: 104, TURN: 2.2, WALL: 26, ZOOM: 1.8 };
+const KRY = { W: 400, H: 720, LY: 612, LX0: 72, LX1: 328, BX: 200, BY: 118, ZONE: 140, RESET: 185, MAX: 104, TURN: 2.2, WALL: 26, ZOOM: 1.8, PRE_MAX: 120, RACE_MAX: 300 };
 
 // Strandkanten på en given höjd, linjär mellan punkterna precis som den ritas.
 function kryShoreX(pts, y) {
@@ -326,11 +326,18 @@ const kryss = {
   update(s, dt, inp) {
     s.t += dt;
     if (s.phase === 1 || s.phase === 2) s.raceT += dt;
-    if (s.phase === 3) s.endT += dt;
+    if (s.phase >= 3) s.endT += dt;
     s.msgT -= dt;
+    // Tidsgräns: ingen start på två minuter, eller fem minuter på banan. Försöket sparas då inte.
+    if ((s.phase === 0 && s.t > KRY.PRE_MAX) || ((s.phase === 1 || s.phase === 2) && s.raceT > KRY.RACE_MAX)) {
+      s.phase = 4;
+      s.endT = 0;
+      say(s, 'TIDEN ÄR UTE', '#f5c225', 3);
+    }
 
-    // Vinden vrider sig lite fram och tillbaka – samma mönster för alla i omgången.
-    s.wa = Math.PI / 2 + 0.2 * Math.sin(s.t * 0.19 + s.ph1) + 0.07 * Math.sin(s.t * 0.61 + s.ph2);
+    // Vinden vrider sig lite fram och tillbaka – samma mönster för alla i omgången. Klockan är loppets,
+    // så hur länge man väntar före start inte ändrar vinden på banan (R1-LOG1-4).
+    s.wa = Math.PI / 2 + 0.2 * Math.sin(s.raceT * 0.19 + s.ph1) + 0.07 * Math.sin(s.raceT * 0.61 + s.ph2);
     // Krusningarna flyttas med vinden steg för steg, så en vindvridning aldrig får dem att svepa bakåt.
     s.wox += Math.cos(s.wa) * 48 * dt;
     s.woy += Math.sin(s.wa) * 48 * dt;
@@ -581,7 +588,7 @@ const kryss = {
     ctx.restore();
 
     // Pil i kanten mot nästa mål när det ligger utanför bild.
-    const goal = s.phase === 1 ? { x: KRY.BX, y: KRY.BY, lab: 'BOJ' } : s.phase === 3 ? null : { x: clamp(s.x, KRY.LX0, KRY.LX1), y: KRY.LY, lab: s.phase === 0 ? 'START' : 'MÅL' };
+    const goal = s.phase === 1 ? { x: KRY.BX, y: KRY.BY, lab: 'BOJ' } : s.phase >= 3 ? null : { x: clamp(s.x, KRY.LX0, KRY.LX1), y: KRY.LY, lab: s.phase === 0 ? 'START' : 'MÅL' };
     if (goal) {
       const gx = (goal.x - s.camX) * ZOOM + W / 2, gy = (goal.y - s.camY) * ZOOM + H / 2;
       const m = 34;
@@ -654,6 +661,9 @@ const kryss = {
   result(s) {
     if (s.phase === 3 && s.endT > 1.4) {
       return { score: s.finalMs, title: 'I mål!', detail: `${s.perfect} perfekta slag av ${s.tacks}` };
+    }
+    if (s.phase === 4 && s.endT > 1.4) {
+      return { score: null, void: true, title: 'Tiden är ute', detail: 'Ingen måltid den här gången. Försöket sparas inte.' };
     }
     return null;
   },
@@ -766,7 +776,8 @@ const slalom = {
       }
     }
     for (const b of s.buoys) {
-      if (!b.got && Math.hypot(b.x - s.x, b.y - s.d) < 21) {
+      // Bojen räknas när skrovet nuddar den ritade bojen (radie 8), inte bara när mitten är nära (R1-LOG1-6).
+      if (!b.got && Math.abs(b.y - s.d) < 40 && polyPointGap(hull, b.x, b.y) <= 8) {
         b.got = true;
         s.bonus += 25;
         s.got++;
@@ -946,17 +957,24 @@ const fortoj = {
       }
     } else if (s.phase === 'run') {
       s.roundT += dt;
-      s.v += (R.cur - (inp.hold ? FT.BRAKE : 0)) * dt;
+      const y0 = s.bowY, v0 = s.v, acc = R.cur - (inp.hold ? FT.BRAKE : 0);
+      s.v += acc * dt;
       s.v *= Math.exp(-0.12 * dt);
       s.bowY -= s.v * dt;
+      s.slowT = s.v < 3 && !inp.hold ? (s.slowT || 0) + dt : 0;
       if (inp.hold && Math.random() < dt * 45) {
         s.bubbles.push({ x: 200 + (Math.random() * 2 - 1) * 10, y: s.bowY + FT.LEN + 4, vx: (Math.random() * 2 - 1) * 30, vy: -20 - Math.random() * 40, life: 0.6 + Math.random() * 0.4, r: 2 + Math.random() * 3 });
       }
       if (s.bowY <= FT.EDGE) {
+        // Farten i själva kontaktögonblicket, inte i slutet av steget: samma angöring ger samma
+        // utfall vid alla bildfrekvenser (R1-LOG1-2).
+        const vc = Math.sqrt(Math.max(0, v0 * v0 + 2 * acc * (y0 - FT.EDGE)));
         s.bowY = FT.EDGE;
-        if (s.v > FT.CRASH) fortoj.end(s, 0, 0, 'KRASCH!');
+        if (vc > FT.CRASH) fortoj.end(s, 0, 0, 'KRASCH!');
         else fortoj.end(s, 100, 0, 'PERFEKT ANGÖRING');
-      } else if (s.v <= 0 && s.roundT > 0.3) {
+      } else if ((s.v <= 0 && s.roundT > 0.3) || s.slowT > 1 || s.roundT > 12) {
+        // Står båten nästan still (eller tar det orimligt lång tid) är angöringen klar (C2-5).
+        s.v = Math.max(0, s.v);
         const gap = s.bowY - FT.EDGE;
         const p = Math.max(0, Math.round(100 - gap));
         fortoj.end(s, p, gap, p >= 90 ? 'SNYGGT!' : p >= 60 ? 'GODKÄNT' : p > 0 ? 'LÅNGT KVAR' : 'FÖR TIDIGT');
@@ -1085,7 +1103,7 @@ const fortoj = {
   },
   result(s) {
     if (s.phase === 'done' && s.doneT > 0.4) {
-      return { score: s.total, title: 'Förtöjd!', detail: 'Rundor: ' + s.pts.join(' · ') };
+      return { score: s.total, title: 'Förtöjd!', detail: 'Angöringar: ' + s.pts.join(' · ') };
     }
     return null;
   },
@@ -1751,11 +1769,11 @@ const parkera = {
       ctx.textBaseline = 'middle';
       ctx.font = `600 12px ${FONT_M}`;
       ctx.fillStyle = 'rgba(234,241,245,.75)';
-      ctx.fillText(`SCEN ${s.i + 1} AV ${s.scen.length}`, W / 2, 268);
+      ctx.fillText(`MANÖVER ${s.i + 1} AV ${s.scen.length}`, W / 2, 268);
       ctx.font = `900 36px ${FONT_D}`;
       ctx.fillStyle = '#f5c225';
       ctx.fillText(S.name.toUpperCase(), W / 2, 300);
-      ctx.font = `400 14px "Atkinson Hyperlegible",system-ui,sans-serif`;
+      ctx.font = `400 14px ${FONT_M}`;
       ctx.fillStyle = '#eaf1f5';
       wrapLines(ctx, S.hint, W - 60).forEach((ln, i) => ctx.fillText(ln, W / 2, 332 + i * 18));
       ctx.font = `600 12px ${FONT_M}`;
@@ -1763,7 +1781,7 @@ const parkera = {
       ctx.fillText(`VIND ${Math.round(S.wind.ws)} M/S FRÅN ${pkCompass(S.wind.from)}`, W / 2, 378);
       ctx.fillStyle = 'rgba(234,241,245,.65)';
       ctx.font = `500 11px ${FONT_M}`;
-      ctx.fillText('SAMMA VINDRIKTNING HELA OMGÅNGEN', W / 2, 398);
+      ctx.fillText('SAMMA VINDRIKTNING HELA FÖRSÖKET', W / 2, 398);
       ctx.restore();
     }
     if (s.phase === 'lines' || s.phase === 'moored') {
@@ -1790,7 +1808,7 @@ const parkera = {
     }
     if (s.phase === 'crash' && s.phaseT > 1.8) {
       const S = s.scen[s.i];
-      return { score: PK.DNF, dnf: true, title: 'Kollision!', detail: `I scen ${s.i + 1}, ${S.name}. Försöket är underkänt och ger ingen giltig tid.` };
+      return { score: PK.DNF, dnf: true, title: 'Kollision!', detail: `I manöver ${s.i + 1}, ${S.name}. Försöket är underkänt och ger ingen giltig tid.` };
     }
     return null;
   },

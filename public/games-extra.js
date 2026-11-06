@@ -51,7 +51,7 @@ function plural(n, one, many) {
    NAVIGATÖREN – rita rutten på sjökortet: förbi märke 1 och 2 och in i hamn.
    Tiden = hur länge du ritar + hur länge rutten tar till sjöss. Grund kostar tid.
    ===================================================================== */
-const NV = { W: 400, H: 720, SPEED: 70, CLEAR: 1.5, START_R: 34, MARK_R: 15, GOAL_R: 20, PEN: 3, GRID: 8, GAP: 7 };
+const NV = { W: 400, H: 720, SPEED: 70, CLEAR: 1.5, START_R: 34, MARK_R: 15, GOAL_R: 20, PEN: 3, GRID: 8, GAP: 7, TLIM: 180 };
 
 function nvBlob(r, cx, cy, rad) {
   const n = 18;
@@ -261,6 +261,18 @@ const navigatoren = {
     if (s.hit) s.hit.t += dt;
     if (s.phase === 'run') {
       s.drawT = Math.min(900, s.drawT + dt);
+      if (s.drawT >= NV.TLIM) {
+        // Tre minuter utan att rutten når hamnen: försöket avbryts och sparas inte (R1-LOG2-5).
+        s.phase = 'timeout';
+        s.phaseT = 0;
+        s.drawing = false;
+        say(s, 'TIDEN ÄR UTE', '#3d5566', 3);
+        return;
+      }
+      // Tomma drag (t.ex. när ett andra finger började rita efter ett grund) ska aldrig ligga kvar,
+      // annars ångrar Ångra ingenting synligt (R1-LOG2-7).
+      const prune = (keep) => { s.strokes = s.strokes.filter((st) => st.length || st === keep); };
+      if (inp.boostPressed) prune(null);
       if (inp.boostPressed && s.strokes.length) {
         s.strokes.pop();
         s.drawing = false;
@@ -275,6 +287,7 @@ const navigatoren = {
           if (s.drawing) continue;
           const [ex, ey] = nvEnd(s);
           if (Math.hypot(e.x - ex, e.y - ey) <= NV.START_R) {
+            prune(null);
             s.drawing = true;
             s.pid = e.id;
             s.cur = [];
@@ -289,10 +302,11 @@ const navigatoren = {
         } else if (e.type === 'up' && e.id === s.pid) {
           s.drawing = false;
           s.pid = null;
-          if (s.cur && !s.cur.length) s.strokes.splice(s.strokes.indexOf(s.cur), 1);
           s.cur = null;
+          prune(null);
         }
       }
+      if (!s.drawing) prune(null);
     } else if (s.phase === 'sail') {
       s.phaseT += dt;
       // Uppspelningen tar högst 3,5 s oavsett ruttens längd; tiden räknas på riktig fart.
@@ -570,6 +584,9 @@ const navigatoren = {
       const grounds = s.grounds ? ` · ${plural(s.grounds, 'grundstötning', 'grundstötningar')} +${s.pen} s` : '';
       return { score: Math.min(1200000, Math.round(nvTotal(s) * 1000)), title: 'I hamn!', detail: `Ritat på ${fmtTime(s.drawT * 1000)} · ${fmtTime((s.len / NV.SPEED) * 1000)} till sjöss${grounds}` };
     }
+    if (s.phase === 'timeout' && s.phaseT > 1.4) {
+      return { score: null, void: true, title: 'Tiden är ute', detail: 'Rutten hann inte fram på tre minuter. Försöket sparas inte.' };
+    }
     return null;
   },
 };
@@ -578,7 +595,7 @@ const navigatoren = {
    FYRKARAKTÄREN – läs av fyrens karaktär och blinka tillbaka den.
    Riktiga beteckningar från sjökortet. Tio fyrar, tre liv.
    ===================================================================== */
-const FY = { W: 400, H: 720, SHORT: 500, LIVES: 3, LEVELS: 10, LEAD: 0.9, MIN_TOL: 260, REL_TOL: 0.14 };
+const FY = { W: 400, H: 720, SHORT: 500, LIVES: 3, LEVELS: 10, LEAD: 0.9, MIN_TOL: 260, REL_TOL: 0.14, IDLE: 6 };
 const FY_S = 300, FY_L = 1100, FY_G = 450, FY_E = 1700, FY_Q = 180, FY_QG = 220, FY_DOT = 260, FY_DASH = 780, FY_MG = 260;
 const fyRep = (n, on, gap, last) => Array.from({ length: n }, (_, i) => [on, i === n - 1 ? last : gap]);
 const FY_CHARS = {
@@ -705,6 +722,7 @@ const fyr = {
         s.phase = 'turn';
         s.pt = 0;
         s.presses = [];
+        s.holding = false; // ett tryck som hölls kvar från förra fyren räknas inte (R1-LOG2-1)
         s.armed = !inp.hold; // en tumme som redan ligger på knappen räknas inte
       }
       return;
@@ -727,6 +745,7 @@ const fyr = {
       } else if (!hold && s.holding) {
         s.holding = false;
         const p = s.presses[s.presses.length - 1];
+        if (!p) return;
         p.off = ms;
         if (s.presses.length === L.seq.length) {
           fyr.judgeNow(s);
@@ -734,7 +753,10 @@ const fyr = {
         }
       }
       const last = s.presses[s.presses.length - 1];
-      if (last && s.holding && ms - last.on > 3500) {
+      if (!last && s.pt > FY.IDLE) {
+        // Ingen blinkar alls: det kostar ett liv, så spelet tar alltid slut (R1-LOG2-4).
+        fyr.judgeNow(s, { ok: false, why: 'INGEN BLIXT', pts: 0 });
+      } else if (last && s.holding && ms - last.on > 3500) {
         last.off = ms;
         fyr.judgeNow(s, { ok: false, why: 'FÖR LÅNG BLIXT', pts: 0 });
       } else if (last && !s.holding && last.off !== null && ms - last.off > Math.max(2600, FY_E + 700)) {
@@ -911,7 +933,7 @@ const fyr = {
    KASTA TAMP – svep tampen mot pollaren på bryggan. Fem kast, vind från sidan.
    Allt räknas i meter; bilden är en enkel perspektivprojektion.
    ===================================================================== */
-const TP = { W: 400, H: 720, THROWS: 5, G: 9.8, ELEV: (40 * Math.PI) / 180, F: 330, HOR: 228, CAMH: 2.4, CAMZ: 2.2, RING: 0.3, HAND: [0, 1.2, 0.3], WATER: -0.7, MAXA: 0.62 };
+const TP = { W: 400, H: 720, THROWS: 5, G: 9.8, ELEV: (40 * Math.PI) / 180, F: 330, HOR: 228, CAMH: 2.4, CAMZ: 2.2, RING: 0.3, HAND: [0, 1.2, 0.3], WATER: -0.7, MAXA: 0.62, IDLE: 20 };
 
 function tpProj(x, y, z) {
   const d = Math.max(0.3, z + TP.CAMZ);
@@ -929,6 +951,22 @@ function tpLaunch(s, vxPx, vyPx) {
   s.rope = { x: TP.HAND[0], y: TP.HAND[1], z: TP.HAND[2], vx: vh * Math.sin(yaw), vy: v * Math.sin(TP.ELEV), vz: vh * Math.cos(yaw), t: 0, trail: [] };
   s.phase = 'fly';
   s.pt = 0;
+}
+// Tampens bana i sluten form, så att samma kast landar på exakt samma ställe vid alla bildfrekvenser
+// (R1-LOG2-2). x har vinddrift (konstant acceleration), y är ett kast med tyngdkraft, z är rakt fram.
+function tpPlan(R, T) {
+  const aw = T.wd * T.ws * 0.22, g = TP.G;
+  const x0 = R.x, y0 = R.y, z0 = R.z, vx0 = R.vx, vy0 = R.vy, vz = R.vz;
+  const at = (t) => ({ x: x0 + vx0 * t + 0.5 * aw * t * t, y: y0 + vy0 * t - 0.5 * g * t * t, z: z0 + vz * t });
+  const down = (h) => (vy0 + Math.sqrt(Math.max(0, vy0 * vy0 + 2 * g * (y0 - h)))) / g; // när y når h på väg ner
+  const tw = down(TP.WATER);
+  const td = vz > 0 ? (T.dock - z0) / vz : Infinity;
+  let tEnd, wet, face = false;
+  if (td < tw && at(td).y < 0) { tEnd = td; wet = true; face = true; } // slår i bryggkanten
+  else if (td < tw) { tEnd = down(0); wet = false; } // över kanten, landar på däck
+  else { tEnd = tw; wet = true; } // i vattnet före bryggan
+  if (tEnd > 4) { tEnd = 4; wet = true; }
+  return { aw, at, tEnd, wet, face };
 }
 function tpScore(d) {
   if (d <= TP.RING) return 100;
@@ -1004,28 +1042,21 @@ const tamp = {
           break;
         }
       }
+      if (s.phase === 'aim' && s.pid === null && s.pt > TP.IDLE) {
+        // Inget kast på länge: kastet räknas som missat så att spelet alltid tar slut.
+        s.rope = { x: TP.HAND[0], y: TP.HAND[1], z: TP.HAND[2], vx: 0, vy: 0, vz: 0, t: 0, trail: [] };
+        tamp.land(s, T, TP.HAND[0], TP.HAND[2], true);
+        s.land.lab = 'INGET KAST';
+        s.land.sub = 'tiden gick ut';
+      }
     } else if (s.phase === 'fly') {
       const R = s.rope;
+      if (!R.plan) R.plan = tpPlan(R, T);
       R.t += dt;
-      const wind = T.wd * T.ws * 0.22;
-      R.vx += wind * dt;
-      R.vy -= TP.G * dt;
-      const pz = R.z, py = R.y;
-      R.x += R.vx * dt;
-      R.y += R.vy * dt;
-      R.z += R.vz * dt;
-      if (R.trail.length === 0 || R.t - R.trail[R.trail.length - 1][3] > 0.03) R.trail.push([R.x, R.y, R.z, R.t]);
-      // Bryggkanten: korsar tampen kanten under däckshöjd slår den i och faller i vattnet.
-      if (pz < T.dock && R.z >= T.dock && R.y < 0) {
-        R.z = T.dock - 0.05;
-        tamp.land(s, T, R.x, R.z, true);
-      } else if (R.z >= T.dock && R.y <= 0 && py > 0) {
-        tamp.land(s, T, R.x, R.z, false);
-      } else if (R.z < T.dock && R.y <= TP.WATER) {
-        tamp.land(s, T, R.x, R.z, true);
-      } else if (R.t > 4) {
-        tamp.land(s, T, R.x, R.z, true);
-      }
+      const P = R.plan, t = Math.min(R.t, P.tEnd), q = P.at(t);
+      R.x = q.x; R.y = q.y; R.z = q.z;
+      if (R.trail.length === 0 || t - R.trail[R.trail.length - 1][3] > 0.03) R.trail.push([R.x, R.y, R.z, t]);
+      if (R.t >= P.tEnd) tamp.land(s, T, R.x, P.face ? T.dock - 0.05 : R.z, P.wet);
     } else if (s.phase === 'land') {
       if (s.pt > 1.9) {
         s.i++;

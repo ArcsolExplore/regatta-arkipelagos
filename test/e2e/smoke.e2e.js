@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 import { startServer } from './server.js';
 
-const GAMES = ['Kryssbanan', 'Skärslalom', 'Förtöj!', 'Förtöja 2', 'Navigatören', 'Fyrkaraktären', 'Kasta tamp', 'Grillmästaren', 'Måsattacken', 'Svallvågen', 'Lotsen i dimman'];
+const GAMES = ['Kryssbanan', 'Skärslalom', 'Förtöj!', 'Hamnmanövern', 'Navigatören', 'Fyrkaraktären', 'Kasta tamp', 'Grillmästaren', 'Måsattacken', 'Svallvågen', 'Lotsen i dimman'];
 let browser, servers = [];
 before(async () => { browser = await chromium.launch(); });
 after(async () => { await browser?.close(); servers.forEach((s) => s.stop()); });

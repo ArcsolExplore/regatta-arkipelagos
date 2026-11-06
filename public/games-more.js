@@ -4,7 +4,7 @@
 /* =====================================================================
    MÅSATTACKEN – försvara räksmörgåsen mot måsarna. Tryck eller svep bort dem.
    ===================================================================== */
-const MS = { W: 400, H: 720, TIME: 60, CX: 200, CY: 470, REACH: 46, SHRIMP: 10, COMBO: 0.8, BONUS: 25 };
+const MS = { W: 400, H: 720, TIME: 60, CX: 200, CY: 470, REACH: 46, SHRIMP: 10, COMBO: 0.8, BONUS: 25, STROKE: 0.4 };
 const MS_KINDS = {
   mas: { r: 30, hp: 1, pts: 10, span: 1 },
   trut: { r: 40, hp: 2, pts: 25, span: 1.35 },
@@ -74,7 +74,7 @@ const masattack = {
     s.parts = stepParts(s.parts, dt);
     for (const p of s.pops) p.t += dt;
     s.pops = s.pops.filter((p) => p.t < 1);
-    // Flyende måsar flyger vidare även när rundan är slut.
+    // Flyende måsar flyger vidare även när försöket är slut.
     for (const g of s.gulls) {
       g.flap += dt * (g.state === 'in' ? 7 : 12);
       g.hitT = Math.max(0, (g.hitT || 0) - dt);
@@ -96,20 +96,26 @@ const masattack = {
     }
     // Tryck och svep. Varje drag kan bara träffa samma mås en gång.
     for (const e of inp.events || []) {
-      if (e.type === 'down') s.strokes[e.id] = { n: (s.strokeN = (s.strokeN || 0) + 1) };
+      if (e.type === 'down') s.strokes[e.id] = { n: (s.strokeN = (s.strokeN || 0) + 1), px: e.x, py: e.y, t0: s.t };
       if (e.type === 'up') {
         delete s.strokes[e.id];
         continue;
       }
       const st = s.strokes[e.id];
       if (!st) continue;
-      for (const g of s.gulls) {
-        if (g.state !== 'in' || g.hitBy[st.n]) continue;
-        if (Math.hypot(e.x - g.x, e.y - g.y) <= MS_KINDS[g.kind].r) {
-          g.hitBy[st.n] = true;
-          msHit(s, g, s.t);
+      // Svepet räknas som en linje från förra punkten, så snabba svep träffar det de passerar (R1-LOG2-3).
+      // Ett svep slår bara under sina första 0,4 s: att rita cirklar runt smörgåsen ska inte löna sig.
+      if (s.t - st.t0 <= MS.STROKE) {
+        for (const g of s.gulls) {
+          if (g.state !== 'in' || g.hitBy[st.n]) continue;
+          if (segDist(g.x, g.y, st.px, st.py, e.x, e.y) <= MS_KINDS[g.kind].r) {
+            g.hitBy[st.n] = true;
+            msHit(s, g, s.t);
+          }
         }
       }
+      st.px = e.x;
+      st.py = e.y;
     }
     for (const g of s.gulls) {
       if (g.state !== 'in') continue;
@@ -675,7 +681,7 @@ const svall = {
    LOTSEN I DIMMAN – memorera kartan, sedan kommer dimman.
    Lys efter sjömärkena, passera 1 och 2 och nå fyren. Mistluren visar kartan en kort stund.
    ===================================================================== */
-const LT = { W: 400, H: 720, MEMO: 4, SPEED: 58, TURN: 2.1, SEE: 62, GAP: 18, PEN: 5, HORN: 2, HORN_T: 0.7, HORN_CD: 2.5, MARK_R: 22, GOAL_R: 26, SC: 0.6 };
+const LT = { W: 400, H: 720, MEMO: 4, SPEED: 58, TURN: 2.1, SEE: 62, GAP: 18, PEN: 5, HORN: 2, HORN_T: 0.7, HORN_CD: 2.5, MARK_R: 22, GOAL_R: 26, SC: 0.6, TLIM: 180 };
 const LT_HULL = MB_HULL.map(([x, y]) => [x * LT.SC, y * LT.SC]);
 
 function ltSolvable(map) {
@@ -784,6 +790,13 @@ const lotsen = {
     }
     if (s.phase !== 'run') return;
     s.run += dt;
+    if (s.run >= LT.TLIM) {
+      // Tre minuter i dimman utan att komma fram: försöket avbryts och sparas inte (R1-LOG2-5).
+      s.phase = 'timeout';
+      s.pt = 0;
+      say(s, 'TIDEN ÄR UTE', '#f5c225', 3);
+      return;
+    }
     if (inp.boostPressed && s.hornCd <= 0) {
       s.hornT = LT.HORN_T;
       s.hornCd = LT.HORN_CD;
@@ -807,11 +820,22 @@ const lotsen = {
       s.flashT = 0.9;
       s.stopT = 0.8;
       say(s, `GRUND! +${LT.PEN} s`, '#ff6b6b', 1.3);
-      // Tillbaka till en säker punkt en bit bakåt i kölvattnet, vänd mot märket du ska till.
+      // Tillbaka till en säker punkt en bit bakåt i kölvattnet, vänd mot märket du ska till (R1-LOG2-6).
+      // Ligger det land rakt framför i den riktningen vänds båten bort från grundet i stället.
+      const hitX = s.x, hitY = s.y;
       const back = s.safe[Math.max(0, s.safe.length - 6)] || { x: s.map.start.x, y: s.map.start.y, a: -Math.PI / 2 };
+      const tgt = s.prog < 2 ? s.map.marks[s.prog] : s.map.goal;
+      const clear = (a) => {
+        for (let d = 0; d <= 30; d += 6) {
+          if (ltAground({ ...s, x: back.x + Math.cos(a) * d, y: back.y + Math.sin(a) * d, a })) return false;
+        }
+        return true;
+      };
+      const toMark = Math.atan2(tgt.y - back.y, tgt.x - back.x);
+      const away = Math.atan2(back.y - hitY, back.x - hitX);
       s.x = back.x;
       s.y = back.y;
-      s.a = back.a;
+      s.a = clear(toMark) ? toMark : clear(away) ? away : back.a;
       s.safe = s.safe.slice(0, Math.max(0, s.safe.length - 6));
       return;
     }
@@ -954,6 +978,9 @@ const lotsen = {
     if (s.phase === 'done' && s.pt > 1.4) {
       const extra = [s.hits ? plural(s.hits, 'grundstötning', 'grundstötningar') : '', s.horns ? `${s.horns} tut` : ''].filter(Boolean).join(' · ');
       return { score: Math.min(900000, Math.round((s.run + s.pen) * 1000)), title: 'Lotsad i hamn!', detail: `Gångtid ${fmtTime(s.run * 1000)}${extra ? ' · ' + extra + ` (+${s.pen} s)` : ' · utan tillägg'}` };
+    }
+    if (s.phase === 'timeout' && s.pt > 1.4) {
+      return { score: null, void: true, title: 'Tiden är ute', detail: 'Tre minuter i dimman utan att nå fyren. Försöket sparas inte.' };
     }
     return null;
   },

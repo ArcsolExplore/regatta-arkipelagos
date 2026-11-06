@@ -48,7 +48,7 @@
    "res": {
     "score": 0,
     "title": "Förtöjd!",
-    "detail": "Rundor: 0 · 0 · 0 · 0 · 0"
+    "detail": "Angöringar: 0 · 0 · 0 · 0 · 0"
    }
   },
   {
@@ -59,7 +59,7 @@
    "res": {
     "score": 0,
     "title": "Förtöjd!",
-    "detail": "Rundor: 0 · 0 · 0 · 0 · 0"
+    "detail": "Angöringar: 0 · 0 · 0 · 0 · 0"
    }
   }
  ],
@@ -72,7 +72,7 @@
    "res": {
     "score": 9999000,
     "title": "Kollision!",
-    "detail": "I scen 1, Långsides. Försöket är underkänt och ger ingen giltig tid."
+    "detail": "I manöver 1, Långsides. Försöket är underkänt och ger ingen giltig tid."
    }
   },
   {
@@ -83,7 +83,7 @@
    "res": {
     "score": 9999000,
     "title": "Kollision!",
-    "detail": "I scen 1, Långsides. Försöket är underkänt och ger ingen giltig tid."
+    "detail": "I manöver 1, Långsides. Försöket är underkänt och ger ingen giltig tid."
    }
   }
  ],
@@ -131,8 +131,8 @@
   {
    "seed": 3,
    "init": "7f7bc88b",
-   "steps": 2722,
-   "t": 22683,
+   "steps": 2724,
+   "t": 22700,
    "res": {
     "score": 0,
     "title": "Tampen är i land",
@@ -142,8 +142,8 @@
   {
    "seed": 44,
    "init": "ab7eabb7",
-   "steps": 2796,
-   "t": 23300,
+   "steps": 2798,
+   "t": 23317,
    "res": {
     "score": 0,
     "title": "Tampen är i land",
@@ -179,23 +179,23 @@
   {
    "seed": 3,
    "init": "fc39f1a0",
-   "steps": 3070,
-   "t": 25583,
+   "steps": 6296,
+   "t": 52467,
    "res": {
-    "score": 180,
+    "score": 2315,
     "title": "Måsarna vann",
-    "detail": "11 måsar bortjagade · 10 räkor stulna"
+    "detail": "74 måsar bortjagade · 10 räkor stulna"
    }
   },
   {
    "seed": 44,
    "init": "6d42daba",
-   "steps": 2644,
-   "t": 22033,
+   "steps": 5104,
+   "t": 42533,
    "res": {
-    "score": 70,
+    "score": 1380,
     "title": "Måsarna vann",
-    "detail": "7 måsar bortjagade · 10 räkor stulna"
+    "detail": "50 måsar bortjagade · 10 räkor stulna"
    }
   }
  ],
@@ -227,9 +227,13 @@
   {
    "seed": 3,
    "init": "5d0070b8",
-   "steps": 10802,
-   "t": 90017,
-   "res": null
+   "steps": 10562,
+   "t": 88017,
+   "res": {
+    "score": 231592,
+    "title": "Lotsad i hamn!",
+    "detail": "Gångtid 1:22,6 · 19 grundstötningar · 27 tut (+149 s)"
+   }
   },
   {
    "seed": 44,
