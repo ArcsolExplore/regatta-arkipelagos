@@ -10,9 +10,10 @@
   function unlock() {
     try {
       if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-      if (audio.state === 'suspended') audio.resume();
+      if (audio.state !== 'running') audio.resume(); // även iOS-läget 'interrupted'
     } catch (e) { audio = null; }
   }
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   function tone(freq, dur, type = 'square', vol = 0.08) {
     try {
       if (!audio) return;
@@ -71,6 +72,7 @@
     requestWake();
   }
   function close() {
+    P.run++; // en lutningsfråga som besvaras efter stängning startar ingen runda (R1-LIVE-12)
     if (cleanup) cleanup();
     cleanup = null;
     $t.hidden = true;
@@ -78,14 +80,32 @@
     document.body.style.overflow = '';
     releaseWake();
   }
-  let lock = null;
+  // Skärmlåset släpps av webbläsaren när sidan göms; det begärs igen när den syns (R1-LIVE-8).
+  let lock = null, lockTok = 0;
   async function requestWake() {
-    try { if (navigator.wakeLock) lock = await navigator.wakeLock.request('screen'); } catch (e) { /* ok */ }
+    const t = ++lockTok;
+    try {
+      if (!navigator.wakeLock || lock) return;
+      const l = await navigator.wakeLock.request('screen');
+      if (t !== lockTok || $t.hidden) { l.release().catch(() => {}); return; }
+      lock = l;
+      l.addEventListener('release', () => { if (lock === l) lock = null; });
+    } catch (e) { /* ok */ }
   }
   function releaseWake() {
+    lockTok++;
     try { lock && lock.release(); } catch (e) { /* ok */ }
     lock = null;
   }
+  document.addEventListener('visibilitychange', () => {
+    if ($t.hidden) return;
+    if (document.visibilityState === 'visible') {
+      unlock();
+      requestWake();
+    } else if (P.state === 'run') {
+      pannaPause(true);
+    }
+  });
 
   /* =====================================================================
      TICKANDE SJÖMINA – säg ett ord i kategorin och skicka vidare innan det smäller.
@@ -104,7 +124,7 @@
       h('h1', { class: 'center', text: 'Tickande sjömina' }),
       h('ul', { class: 'how' },
         h('li', null, h('b', { text: '1' }), h('span', { text: 'Telefonen visar en kategori. Den som håller den säger något som passar.' })),
-        h('li', null, h('b', { text: '2' }), h('span', { text: 'Tryck Skicka vidare och ge telefonen till nästa. Ingen får säga samma sak två gånger.' })),
+        h('li', null, h('b', { text: '2' }), h('span', { text: 'Tryck på Skicka vidare och ge telefonen till nästa person. Ingen får säga något som redan sagts.' })),
         h('li', null, h('b', { text: '3' }), h('span', { text: 'Stubinen är hemlig, mellan 20 och 60 sekunder. Den som håller minan när den smäller förlorar rundan.' }))),
       seg,
       h('button', { class: 'btn big', type: 'button', onclick: minaStart }, 'Tänd stubinen'));
@@ -123,7 +143,7 @@
     minaPrompt();
     $t.className = 'mina-run';
     const catEl = h('div', { class: 'mina-cat' });
-    const passEl = h('span', { text: '0' });
+    const passEl = h('span', { text: 'Skickad 0 gånger' });
     const art = h('div', { class: 'mine-art live', svg: mineSVG(true) });
     const paint = () => {
       catEl.replaceChildren(...[h('span', { text: M.cat }), M.letter ? h('b', { text: `som börjar på ${M.letter}` }) : null].filter(Boolean));
@@ -134,7 +154,7 @@
       catEl,
       h('button', { class: 'btn big pass-btn', type: 'button', onclick: () => {
         M.passes++;
-        passEl.textContent = String(M.passes);
+        passEl.textContent = `Skickad ${plural(M.passes, 'gång', 'gånger')}`;
         tone(1200, 0.05, 'triangle', 0.06);
         RA().vibrate(20);
         if (M.letter) {
@@ -142,7 +162,7 @@
           paint();
         }
       } }, 'Skicka vidare'),
-      h('p', { class: 'note center' }, 'Skickad ', passEl, ' gånger'),
+      h('p', { class: 'note center' }, passEl),
       h('button', { class: 'linkish center-block', type: 'button', onclick: () => { minaPrompt(); paint(); } }, 'Byt kategori'));
     const loop = () => {
       if (M.ended) return;
@@ -174,7 +194,7 @@
     $body.replaceChildren(
       h('div', { class: 'boom-word', text: 'BOOM!' }),
       h('p', { class: 'lede center', text: 'Den som håller telefonen förlorade rundan.' }),
-      h('p', { class: 'note center', text: `Minan skickades ${M.passes} gånger. Sista kategorin: ${M.cat}${M.letter ? `, ${M.letter}` : ''}.` }),
+      h('p', { class: 'note center', text: `Minan skickades ${plural(M.passes, 'gång', 'gånger')}. Sista kategorin: ${M.cat}${M.letter ? `, ${M.letter}` : ''}.` }),
       h('div', { class: 'actions center-actions' },
         h('button', { class: 'btn', type: 'button', onclick: minaStart }, 'Ny runda'),
         h('button', { class: 'btn ghost', type: 'button', onclick: minaSetup }, 'Inställningar')));
@@ -191,7 +211,7 @@
   /* =====================================================================
      PANNKORTET – telefonen mot pannan, laget beskriver. Fäll ner = rätt, upp = pass.
      ===================================================================== */
-  const P = { deck: null, rule: false, order: {}, pos: {}, words: [], score: 0, t0: 0, dur: 60000, raf: 0, state: 'setup', armed: false, neutralT: 0, sensor: false, cool: 0, cur: '', ruleText: '' };
+  const P = { deck: null, rule: false, order: {}, pos: {}, words: [], score: 0, t0: 0, dur: 60000, raf: 0, state: 'setup', armed: false, neutralT: 0, sensor: false, cool: 0, cur: '', ruleText: '', run: 0, pausedAt: 0 };
   function pannaSetup() {
     if (cleanup) cleanup();
     cleanup = null;
@@ -207,7 +227,7 @@
       h('ul', { class: 'how' },
         h('li', null, h('b', { text: '1' }), h('span', { text: 'En håller telefonen mot pannan med skärmen utåt. De andra beskriver ordet som syns.' })),
         h('li', null, h('b', { text: '2' }), h('span', { text: 'Fäll telefonen nedåt när du gissat rätt. Fäll uppåt för att passa. Knapparna fungerar också.' })),
-        h('li', null, h('b', { text: '3' }), h('span', { text: 'Så många ord ni hinner på 60 sekunder.' }))),
+        h('li', null, h('b', { text: '3' }), h('span', { text: 'Gissa så många ord ni hinner på 60 sekunder.' }))),
       h('div', { class: 'cat-grid' }, PANNA_DECKS.map((d) => h('button', { class: 'cat' + (P.deck === d.id ? ' on' : ''), type: 'button', 'aria-pressed': String(P.deck === d.id), onclick: () => { P.deck = d.id; pannaSetup(); } },
         h('span', { svg: RA().flagSVG(d.flag, 36, 24) }), h('b', { text: d.name }), h('span', { text: `${d.words.length} ord` })))),
       h('label', { class: 'check', for: 'pannaRule' }, ruleBox, h('span', null, h('b', { text: 'Med kortregel' }), h('span', { class: 'muted', text: ': ett kort ur Begränsning bestämmer hur ni får beskriva' }))),
@@ -223,12 +243,14 @@
   }
   async function pannaStart() {
     unlock();
+    const run = ++P.run;
     // iOS kräver att man ber om lov att läsa lutningen, och det måste ske i ett tryck.
     try {
       if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
         await DeviceOrientationEvent.requestPermission();
       }
     } catch (e) { /* knapparna fungerar ändå */ }
+    if (run !== P.run || $t.hidden) return;
     P.words = [];
     P.score = 0;
     P.armed = false;
@@ -254,8 +276,9 @@
     const ruleEl = P.ruleText ? h('div', { class: 'panna-rule', text: `Regel: ${P.ruleText}` }) : null;
     const pass = h('button', { class: 'panna-btn pass', type: 'button', onclick: () => answer(false) }, 'Pass');
     const ok = h('button', { class: 'panna-btn ok', type: 'button', onclick: () => answer(true) }, 'Rätt');
-    $body.replaceChildren(h('div', { class: 'panna' }, h('div', { class: 'panna-top' }, info, ruleEl), word, h('div', { class: 'panna-btns' }, pass, ok)));
-    P.els = { word, info };
+    const pauseBtn = h('button', { class: 'btn ghost small panna-pause', type: 'button', onclick: () => pannaPause(P.state === 'run') }, 'Paus');
+    $body.replaceChildren(h('div', { class: 'panna' }, h('div', { class: 'panna-top' }, info, ruleEl, pauseBtn), word, h('div', { class: 'panna-btns' }, pass, ok)));
+    P.els = { word, info, pauseBtn };
     const t0 = performance.now();
     let lastCount = 4;
     const loop = () => {
@@ -275,6 +298,8 @@
           showWord();
           tone(1000, 0.15);
         }
+      } else if (P.state === 'paused') {
+        // klockan står still medan rundan är pausad
       } else if (P.state === 'run') {
         const left = Math.max(0, P.dur - (now - P.t0));
         info.textContent = `${Math.ceil(left / 1000)} s · ${P.score} rätt`;
@@ -283,6 +308,23 @@
       P.raf = requestAnimationFrame(loop);
     };
     P.raf = requestAnimationFrame(loop);
+  }
+  // Paus mitt i en runda (C6-7): klockan stannar, ordet döljs och lutningen räknas inte.
+  function pannaPause(on) {
+    if (!P.els || !P.els.pauseBtn) return;
+    if (on && P.state === 'run') {
+      P.state = 'paused';
+      P.pausedAt = performance.now();
+      P.els.word.textContent = 'Paus';
+      P.els.info.textContent = 'Rundan är pausad';
+      P.els.pauseBtn.textContent = 'Fortsätt';
+    } else if (!on && P.state === 'paused') {
+      P.t0 += performance.now() - P.pausedAt;
+      P.state = 'run';
+      P.armed = false;
+      P.els.pauseBtn.textContent = 'Paus';
+      showWord();
+    }
   }
   // Lutningen: z-komponenten av "uppåt" i telefonens koordinater. Skärmen rakt ut = 0,
   // skärmen mot golvet = −1 (rätt), skärmen mot taket = +1 (pass). Fungerar åt alla håll telefonen vänds.
@@ -339,7 +381,7 @@
         h('span', { class: 'val ' + (x.ok ? 'good' : 'bad'), text: x.ok ? 'Rätt' : 'Pass' })))),
       h('div', { class: 'actions center-actions' },
         h('button', { class: 'btn', type: 'button', onclick: pannaStart }, 'Nästa person'),
-        h('button', { class: 'btn ghost', type: 'button', onclick: pannaSetup }, 'Byt kortlek')));
+        h('button', { class: 'btn ghost', type: 'button', onclick: pannaSetup }, 'Byt tema')));
   }
 
   /* ---------- Bordets sektion ---------- */

@@ -588,7 +588,7 @@
       h('div', { class: 'section-head' }, h('h2', { text: 'Regattan' }), h('span', { class: 'eyebrow', text: 'Solo' })),
       games));
 
-    if (window.Live) root.append(window.Live.homeSection());
+    if (window.Live) root.append(window.Live.homeSection({ available: Sync.mode !== 'local' }));
 
     root.append(h('div', { class: 'section' },
       h('div', { class: 'section-head' }, h('h2', { text: 'Runt bordet' }), h('span', { class: 'eyebrow', text: 'En telefon' })),
@@ -1312,7 +1312,27 @@
   /* =====================================================================
      KORTLEKEN
      ===================================================================== */
-  const Cards = { cat: null, order: {}, pos: {}, timer: { total: 0, left: 0, id: 0, done: false } };
+  // Var man är i leken sparas, så en omladdning ger samma kort och samma "3 av 12" (C1-14).
+  const Cards = { cat: null, order: {}, pos: {}, current: 0, revealed: false, timer: { total: 0, left: 0, id: 0, done: false, paused: false, end: 0, pausedLeft: 0 } };
+  {
+    const d = LS.get('ra_deck', null);
+    if (d && d.v === 1 && d.order && d.pos) {
+      for (const c of CARD_CATS) {
+        const o = d.order[c.id];
+        // Ändrad kortlek (fler eller färre kort): blanda om just den kategorin.
+        if (Array.isArray(o) && o.length === c.cards.length && o.every((i) => Number.isInteger(i) && i >= 0 && i < c.cards.length)) {
+          Cards.order[c.id] = o;
+          Cards.pos[c.id] = Math.min(o.length, d.pos[c.id] | 0);
+        }
+      }
+      const cat = CARD_CATS.find((c) => c.id === d.cat);
+      if (cat && Cards.order[cat.id] && Cards.pos[cat.id] > 0) {
+        Cards.cat = cat.id;
+        Cards.current = Cards.order[cat.id][Cards.pos[cat.id] - 1];
+      }
+    }
+  }
+  const saveDeck = () => LS.set('ra_deck', { v: 1, cat: Cards.cat, order: Cards.order, pos: Cards.pos });
   function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -1329,6 +1349,8 @@
     }
     Cards.cat = catId;
     Cards.current = Cards.order[catId][Cards.pos[catId]++];
+    Cards.revealed = false; // ett nytt kort är alltid dolt
+    saveDeck();
     stopTimer();
     renderCards();
   }
@@ -1336,34 +1358,118 @@
     const c = CARD_CATS[Math.floor(Math.random() * CARD_CATS.length)];
     drawCard(c.id);
   }
+
+  /* ---------- ljud för timern (låses upp av första trycket) ---------- */
+  let cardAudio = null;
+  function cardAudioUnlock() {
+    try {
+      if (!cardAudio) cardAudio = new (window.AudioContext || window.webkitAudioContext)();
+      if (cardAudio.state !== 'running') cardAudio.resume();
+    } catch (e) { cardAudio = null; }
+  }
+  function cardTone(freq, dur, at = 0, vol = 0.09) {
+    try {
+      if (!cardAudio) return;
+      const t = cardAudio.currentTime + at;
+      const o = cardAudio.createOscillator(), g = cardAudio.createGain();
+      o.type = 'square';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(cardAudio.destination);
+      o.start(t);
+      o.stop(t + dur);
+    } catch (e) { /* inget ljud */ }
+  }
+  const horn = () => [0, 0.4, 0.8].forEach((at, i) => cardTone(i === 2 ? 660 : 440, 0.3, at, 0.12));
+
+  // Timern: klockan räknas från performance.now, piper de sista fem sekunderna, tutar vid noll
+  // och håller skärmen vaken medan den går (C1-7). Den kan pausas.
+  let cardLock = null, cardLockTok = 0, cardLockOff = 0;
+  async function cardWake(on) {
+    clearTimeout(cardLockOff);
+    const t = ++cardLockTok;
+    if (!on) { try { cardLock && cardLock.release(); } catch (e) { /* ok */ } cardLock = null; return; }
+    try {
+      if (!navigator.wakeLock || cardLock) return;
+      const l = await navigator.wakeLock.request('screen');
+      if (t !== cardLockTok) { l.release().catch(() => {}); return; }
+      cardLock = l;
+      l.addEventListener('release', () => { if (cardLock === l) cardLock = null; });
+    } catch (e) { /* ok */ }
+  }
   function stopTimer() {
     clearInterval(Cards.timer.id);
-    Cards.timer = { total: 0, left: 0, id: 0, done: false };
+    Cards.timer = { total: 0, left: 0, id: 0, done: false, paused: false, end: 0, pausedLeft: 0 };
+    cardWake(false);
+  }
+  function runTimer() {
+    const T = Cards.timer;
+    clearInterval(T.id);
+    let lastTick = Math.ceil(T.left);
+    T.id = setInterval(() => {
+      T.left = Math.max(0, (T.end - performance.now()) / 1000);
+      const c = Math.ceil(T.left);
+      if (c !== lastTick && c > 0 && c <= 5) cardTone(1000, 0.04);
+      lastTick = c;
+      if (T.left <= 0) {
+        clearInterval(T.id);
+        T.done = true;
+        horn();
+        vibrate([200, 100, 200]);
+        const card = $('#view-kort .card');
+        if (card) { card.classList.remove('timeup'); void card.offsetWidth; card.classList.add('timeup'); }
+        const msg = $('#timerMsg');
+        if (msg) msg.textContent = 'Tiden är ute!';
+        // Skärmen får slockna en minut efter att tiden tagit slut.
+        cardLockOff = setTimeout(() => cardWake(false), 60000);
+      }
+      paintTimer();
+    }, 250);
   }
   function startTimer(sec) {
     stopTimer();
-    Cards.timer.total = sec;
-    Cards.timer.left = sec;
-    const t0 = Date.now();
-    Cards.timer.id = setInterval(() => {
-      Cards.timer.left = Math.max(0, sec - (Date.now() - t0) / 1000);
-      if (Cards.timer.left <= 0) {
-        clearInterval(Cards.timer.id);
-        Cards.timer.done = true;
-        vibrate([200, 100, 200]);
-      }
-      paintTimer();
-    }, 100);
+    cardAudioUnlock();
+    Object.assign(Cards.timer, { total: sec, left: sec, end: performance.now() + sec * 1000 });
+    const msg = $('#timerMsg');
+    if (msg) msg.textContent = '';
+    cardWake(true);
+    runTimer();
     paintTimer();
   }
+  function pauseTimer() {
+    const T = Cards.timer;
+    if (!T.total || T.done) return;
+    if (!T.paused) {
+      clearInterval(T.id);
+      T.paused = true;
+      T.pausedLeft = Math.max(0, (T.end - performance.now()) / 1000);
+    } else {
+      T.paused = false;
+      T.end = performance.now() + T.pausedLeft * 1000;
+      runTimer();
+    }
+    paintTimer();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Cards.timer.total && !Cards.timer.done && !Cards.timer.paused) cardWake(true);
+  });
   function paintTimer() {
     const box = $('#timerBox');
     if (!box) return;
     const t = Cards.timer;
-    const pct = t.total ? (t.left / t.total) * 100 : 0;
+    const left = t.paused ? t.pausedLeft : t.left;
+    const pct = t.total ? (left / t.total) * 100 : 0;
     box.classList.toggle('done', t.done);
+    box.classList.toggle('paused', t.paused);
+    box.classList.toggle('running', !!t.total && !t.done && !t.paused);
     box.querySelector('.timer-dial').style.setProperty('--p', pct.toFixed(1));
-    box.querySelector('.timer-dial span').textContent = t.total ? (t.done ? 'Stopp' : String(Math.ceil(t.left))) : '–';
+    box.querySelector('.timer-dial span').textContent = t.total ? (t.done ? '0' : String(Math.ceil(left))) : '–';
+    const pb = box.querySelector('.timer-pause');
+    if (pb) {
+      pb.hidden = !t.total || t.done;
+      pb.textContent = t.paused ? 'Fortsätt' : 'Paus';
+    }
   }
 
   function renderCards() {
@@ -1385,18 +1491,30 @@
     }
     const cat = CARD_CATS.find((c) => c.id === Cards.cat);
     const card = cat.cards[Cards.current];
+    // Det hemliga (ordet, eller raden med lösningen) täcks tills läsaren själv vill se det (C1-6).
+    const hide = card.hide || cat.hide;
+    const covered = hide && !Cards.revealed;
+    const reveal = (on) => { Cards.revealed = on; renderCards(); };
+    const line = (key, el) => {
+      if (hide !== key) return el;
+      if (covered) return h('div', { class: 'cover' }, h('p', { text: 'Bara läsaren tittar' }), h('button', { class: 'btn', type: 'button', onclick: () => reveal(true) }, 'Visa för mig'));
+      return h('div', { class: 'revealed' }, el, h('button', { class: 'btn ghost small', type: 'button', onclick: () => reveal(false) }, 'Dölj'));
+    };
     const timer = h('div', { class: 'timer', id: 'timerBox' },
       h('div', { class: 'timer-dial' }, h('span', { text: '–' })),
-      h('div', { class: 'actions' }, [30, 60, 90].map((s) => h('button', { class: 'btn ghost small', type: 'button', onclick: () => startTimer(s) }, `${s} s`))));
+      h('div', { class: 'actions' },
+        [30, 60, 90].map((s) => h('button', { class: 'btn ghost small', type: 'button', onclick: () => startTimer(s) }, `${s} s`)),
+        h('button', { class: 'btn ghost small timer-pause', type: 'button', hidden: true, onclick: pauseTimer }, 'Paus')),
+      h('p', { class: 'timer-msg', id: 'timerMsg', role: 'status', 'aria-live': 'assertive' }));
     root.append(
       h('div', { class: 'section-head' },
-        h('button', { class: 'linkish', type: 'button', onclick: () => { Cards.cat = null; stopTimer(); renderCards(); } }, '◀ Alla kategorier'),
+        h('button', { class: 'linkish', type: 'button', onclick: () => { Cards.cat = null; saveDeck(); stopTimer(); renderCards(); } }, '◀ Alla kategorier'),
         h('span', { class: 'eyebrow', text: `${Cards.pos[cat.id]} av ${cat.cards.length}` })),
-      h('article', { class: 'card', 'aria-live': 'polite' },
+      h('article', { class: 'card' + (covered ? ' secret' : '') },
         h('div', { class: 'card-top' }, h('span', { class: 'card-cat', text: cat.name }), h('span', { svg: flagSVG(cat.flag, 42, 28) })),
         h('p', { class: 'card-rule', text: cat.rule }),
-        h('div', { class: 'card-main', text: card.a }),
-        card.b ? h('p', { class: 'card-sub', text: card.b }) : null),
+        line('a', h('div', { class: 'card-main', text: card.a })),
+        card.b ? line('b', h('p', { class: 'card-sub', text: card.b })) : null),
       timer,
       h('div', { class: 'actions' },
         h('button', { class: 'btn', type: 'button', onclick: () => drawCard(cat.id) }, 'Nästa kort'),
