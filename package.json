@@ -5,6 +5,12 @@
   "type": "module",
   "description": "Regatta Arkipelagos: arkadspel, delad topplista och kortlek för sällskapsspelet.",
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:update-golden": "UPDATE_GOLDEN=1 node --test test/games/golden.test.js",
+    "e2e": "node --test test/e2e/*.e2e.js"
   }
 }

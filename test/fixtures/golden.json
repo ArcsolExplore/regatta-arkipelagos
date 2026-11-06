@@ -1,0 +1,242 @@
+{
+ "kryss": [
+  {
+   "seed": 3,
+   "init": "82e29156",
+   "steps": 10802,
+   "t": 90017,
+   "res": null
+  },
+  {
+   "seed": 44,
+   "init": "5f75fe7b",
+   "steps": 10802,
+   "t": 90017,
+   "res": null
+  }
+ ],
+ "slalom": [
+  {
+   "seed": 3,
+   "init": "ed42b89",
+   "steps": 450,
+   "t": 3750,
+   "res": {
+    "score": 39,
+    "title": "På land!",
+    "detail": "39 meter och 0 bojar"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "839aea50",
+   "steps": 504,
+   "t": 4200,
+   "res": {
+    "score": 46,
+    "title": "Grundstötning!",
+    "detail": "46 meter och 0 bojar"
+   }
+  }
+ ],
+ "fortoj": [
+  {
+   "seed": 3,
+   "init": "7ffa42b6",
+   "steps": 2364,
+   "t": 19700,
+   "res": {
+    "score": 0,
+    "title": "Förtöjd!",
+    "detail": "Rundor: 0 · 0 · 0 · 0 · 0"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "3153a23c",
+   "steps": 2882,
+   "t": 24017,
+   "res": {
+    "score": 0,
+    "title": "Förtöjd!",
+    "detail": "Rundor: 0 · 0 · 0 · 0 · 0"
+   }
+  }
+ ],
+ "parkera": [
+  {
+   "seed": 3,
+   "init": "c2dc48d4",
+   "steps": 3404,
+   "t": 28367,
+   "res": {
+    "score": 9999000,
+    "title": "Kollision!",
+    "detail": "I scen 1, Långsides. Försöket är underkänt och ger ingen giltig tid."
+   }
+  },
+  {
+   "seed": 44,
+   "init": "75aa8e55",
+   "steps": 8964,
+   "t": 74700,
+   "res": {
+    "score": 9999000,
+    "title": "Kollision!",
+    "detail": "I scen 1, Långsides. Försöket är underkänt och ger ingen giltig tid."
+   }
+  }
+ ],
+ "navigator": [
+  {
+   "seed": 3,
+   "init": "459bf05b",
+   "steps": 10802,
+   "t": 90017,
+   "res": null
+  },
+  {
+   "seed": 44,
+   "init": "102b94f6",
+   "steps": 10802,
+   "t": 90017,
+   "res": null
+  }
+ ],
+ "fyr": [
+  {
+   "seed": 3,
+   "init": "c8ac5e9",
+   "steps": 3998,
+   "t": 33317,
+   "res": {
+    "score": 88,
+    "title": "Mörkt i tornet",
+    "detail": "1 av 4 rätt · 0 · 88 · 0 · 0"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "fa5951fe",
+   "steps": 5596,
+   "t": 46633,
+   "res": {
+    "score": 182,
+    "title": "Mörkt i tornet",
+    "detail": "2 av 5 rätt · 92 · 90 · 0 · 0 · 0"
+   }
+  }
+ ],
+ "tamp": [
+  {
+   "seed": 3,
+   "init": "7f7bc88b",
+   "steps": 2722,
+   "t": 22683,
+   "res": {
+    "score": 0,
+    "title": "Tampen är i land",
+    "detail": "0 kast på pollaren · 0 · 0 · 0 · 0 · 0"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "ab7eabb7",
+   "steps": 2796,
+   "t": 23300,
+   "res": {
+    "score": 0,
+    "title": "Tampen är i land",
+    "detail": "0 kast på pollaren · 0 · 0 · 0 · 0 · 0"
+   }
+  }
+ ],
+ "grill": [
+  {
+   "seed": 3,
+   "init": "8315649b",
+   "steps": 7370,
+   "t": 61417,
+   "res": {
+    "score": 0,
+    "title": "Maten är serverad",
+    "detail": "5 serverade · 0 perfekta · 14 bränder"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "456fec80",
+   "steps": 7370,
+   "t": 61417,
+   "res": {
+    "score": 0,
+    "title": "Maten är serverad",
+    "detail": "8 serverade · 0 perfekta · 11 bränder"
+   }
+  }
+ ],
+ "mas": [
+  {
+   "seed": 3,
+   "init": "fc39f1a0",
+   "steps": 3070,
+   "t": 25583,
+   "res": {
+    "score": 180,
+    "title": "Måsarna vann",
+    "detail": "11 måsar bortjagade · 10 räkor stulna"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "6d42daba",
+   "steps": 2644,
+   "t": 22033,
+   "res": {
+    "score": 70,
+    "title": "Måsarna vann",
+    "detail": "7 måsar bortjagade · 10 räkor stulna"
+   }
+  }
+ ],
+ "svall": [
+  {
+   "seed": 3,
+   "init": "fbfbfe61",
+   "steps": 1124,
+   "t": 9367,
+   "res": {
+    "score": 128,
+    "title": "Koppen välte",
+    "detail": "9 s i sittbrunnen · 88 % kaffe kvar · 0 smällar i kanten"
+   }
+  },
+  {
+   "seed": 44,
+   "init": "f8c8ab43",
+   "steps": 844,
+   "t": 7033,
+   "res": {
+    "score": 89,
+    "title": "Koppen välte",
+    "detail": "7 s i sittbrunnen · 79 % kaffe kvar · 0 smällar i kanten"
+   }
+  }
+ ],
+ "lots": [
+  {
+   "seed": 3,
+   "init": "5d0070b8",
+   "steps": 10802,
+   "t": 90017,
+   "res": null
+  },
+  {
+   "seed": 44,
+   "init": "70ac9992",
+   "steps": 10802,
+   "t": 90017,
+   "res": null
+  }
+ ]
+}

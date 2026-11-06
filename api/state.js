@@ -4,6 +4,8 @@
 // POST /api/state { type: 'round', expect }
 // Lagring: Upstash Redis via Vercel Marketplace (KV_REST_API_* eller UPSTASH_REDIS_REST_*).
 
+import { store, redis, parse, json, readJson, route, HttpError, cleanName } from './_shared.js';
+
 const DEFAULT_ROUND = { n: 1, seed: 74011, startedAt: null };
 const KEY_ROUND = 'ra:round';
 const scoresKey = (n) => `ra:scores:${n}`;
@@ -26,53 +28,16 @@ const GAMES = {
   start: { better: 'low', min: 0, max: 5000 },
 };
 
-const headers = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers });
-
-function store() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? { url: url.replace(/\/+$/, ''), token } : null;
-}
-
-async function redis(cfg, cmds) {
-  const res = await fetch(cfg.url + '/pipeline', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${cfg.token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(cmds),
-  });
-  if (!res.ok) throw new Error('redis http ' + res.status);
-  const out = await res.json();
-  return out.map((x) => {
-    if (x && x.error) throw new Error('redis ' + x.error);
-    return x ? x.result : null;
-  });
-}
-
-function parse(v) {
-  if (typeof v !== 'string') return null;
-  try {
-    return JSON.parse(v);
-  } catch {
-    return null;
-  }
-}
-
 function slug(n) {
   // Skiftläge och mellanrum spelar ingen roll, men å, ä och ö skiljer namn åt (Åsa är inte Asa).
   return String(n).normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'spelare';
 }
 
-function cleanName(n) {
-  if (typeof n !== 'string') return '';
-  return n.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 20);
-}
-
-async function readState(cfg) {
-  const [raw] = await redis(cfg, [['GET', KEY_ROUND]]);
+async function readState(cfg, ctx) {
+  const [raw] = await redis(cfg, [['GET', KEY_ROUND]], ctx);
   const r = parse(raw);
   const round = r && Number.isInteger(r.n) && r.n > 0 ? { n: r.n, seed: r.seed >>> 0, startedAt: r.startedAt || null } : DEFAULT_ROUND;
-  const [flat] = await redis(cfg, [['HGETALL', scoresKey(round.n)]]);
+  const [flat] = await redis(cfg, [['HGETALL', scoresKey(round.n)]], ctx);
   const scores = [];
   if (Array.isArray(flat)) {
     for (let i = 0; i + 1 < flat.length; i += 2) {
@@ -85,70 +50,61 @@ async function readState(cfg) {
   return { round, scores };
 }
 
-export async function GET() {
+export const GET = route('state', async (request, ctx) => {
   const cfg = store();
-  if (!cfg) return json(503, { error: 'no_store' });
-  try {
-    return json(200, await readState(cfg));
-  } catch (e) {
-    return json(502, { error: 'store_failed' });
-  }
-}
+  if (!cfg) return json(ctx, 503, { error: 'no_store' });
+  return json(ctx, 200, await readState(cfg, ctx));
+});
 
-export async function POST(request) {
+export const POST = route('state', async (request, ctx) => {
   const cfg = store();
-  if (!cfg) return json(503, { error: 'no_store' });
+  if (!cfg) return json(ctx, 503, { error: 'no_store' });
+  const body = await readJson(request);
+  ctx.action = String(body.type || '').slice(0, 16);
+  const state = await readState(cfg, ctx);
 
-  let body;
-  try {
-    const text = await request.text();
-    if (text.length > 2000) return json(413, { error: 'too_large' });
-    body = JSON.parse(text);
-  } catch {
-    return json(400, { error: 'bad_json' });
-  }
-  if (!body || typeof body !== 'object') return json(400, { error: 'bad_body' });
+  if (body.type === 'score') {
+    const game = GAMES[body.game] ? body.game : null;
+    const name = cleanName(body.name);
+    const score = Number(body.score);
+    if (!game || !name || !Number.isFinite(score)) throw new HttpError(400, 'bad_score');
+    const rules = GAMES[game];
+    if (rules.serverOnly) throw new HttpError(403, 'server_only');
+    const isDnf = rules.dnf !== undefined && score === rules.dnf;
+    if (!isDnf && (score < rules.min || score > rules.max)) throw new HttpError(400, 'out_of_range');
+    if (Number(body.round) !== state.round.n) return json(ctx, 409, { error: 'round_changed', state });
 
-  try {
-    const state = await readState(cfg);
-
-    if (body.type === 'score') {
-      const game = GAMES[body.game] ? body.game : null;
-      const name = cleanName(body.name);
-      const score = Number(body.score);
-      if (!game || !name || !Number.isFinite(score)) return json(400, { error: 'bad_score' });
-      const rules = GAMES[game];
-      const isDnf = rules.dnf !== undefined && score === rules.dnf;
-      if (!isDnf && (score < rules.min || score > rules.max)) return json(400, { error: 'out_of_range' });
-      if (Number(body.round) !== state.round.n) return json(409, { error: 'round_changed', state });
-
-      const val = Math.round(score);
-      const prev = state.scores.find((s) => s.game === game && slug(s.name) === slug(name));
-      const better = !prev || (rules.better === 'low' ? val < prev.score : val > prev.score);
-      if (better) {
-        const rec = { game, name, score: val, at: Date.now() };
-        await redis(cfg, [
-          ['HSET', scoresKey(state.round.n), `${game}:${slug(name)}`, JSON.stringify(rec)],
-          ['EXPIRE', scoresKey(state.round.n), String(TTL)],
-        ]);
-        state.scores = state.scores.filter((s) => s !== prev).concat(rec);
-      }
-      return json(200, { ok: true, improved: better, state });
+    const val = Math.round(score);
+    const prev = state.scores.find((s) => s.game === game && slug(s.name) === slug(name));
+    const better = !prev || (rules.better === 'low' ? val < prev.score : val > prev.score);
+    if (better) {
+      const rec = { game, name, score: val, at: Date.now() };
+      await redis(cfg, [
+        ['HSET', scoresKey(state.round.n), `${game}:${slug(name)}`, JSON.stringify(rec)],
+        ['EXPIRE', scoresKey(state.round.n), String(TTL)],
+      ], ctx);
+      state.scores = state.scores.filter((s) => s !== prev).concat(rec);
     }
-
-    if (body.type === 'round') {
-      if (Number(body.expect) !== state.round.n) return json(409, { error: 'round_changed', state });
-      // Ett lås per omgång: om två trycker samtidigt vinner bara den första, den andra får 409.
-      const [got] = await redis(cfg, [['SET', `ra:roundlock:${state.round.n}`, '1', 'NX', 'EX', '120']]);
-      if (got !== 'OK') return json(409, { error: 'round_changed', state: await readState(cfg) });
-      const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-      const round = { n: state.round.n + 1, seed, startedAt: Date.now() };
-      await redis(cfg, [['SET', KEY_ROUND, JSON.stringify(round)]]);
-      return json(200, { ok: true, state: { round, scores: [] } });
-    }
-
-    return json(400, { error: 'bad_type' });
-  } catch (e) {
-    return json(502, { error: 'store_failed' });
+    return json(ctx, 200, { ok: true, improved: better, name, state });
   }
-}
+
+  if (body.type === 'round') {
+    if (Number(body.expect) !== state.round.n) return json(ctx, 409, { error: 'round_changed', state });
+    // Ett lås per omgång: om två trycker samtidigt vinner bara den första, den andra får 409.
+    const lock = `ra:roundlock:${state.round.n}`;
+    const [got] = await redis(cfg, [['SET', lock, '1', 'NX', 'EX', '120']], ctx);
+    if (got !== 'OK') return json(ctx, 409, { error: 'round_changed', state: await readState(cfg, ctx) });
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+    const round = { n: state.round.n + 1, seed, startedAt: Date.now() };
+    try {
+      await redis(cfg, [['SET', KEY_ROUND, JSON.stringify(round)]], ctx);
+    } catch (e) {
+      // Släpp låset så att omgången kan bytas igen när lagringen fungerar (R1-SRV-10).
+      await redis(cfg, [['DEL', lock]], ctx).catch(() => {});
+      throw e;
+    }
+    return json(ctx, 200, { ok: true, state: { round, scores: [] } });
+  }
+
+  throw new HttpError(400, 'bad_type');
+});
