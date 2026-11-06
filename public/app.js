@@ -525,7 +525,8 @@
     const chip = $('#syncChip');
     const labels = { connecting: 'ansluter', shared: 'gemensam', offline: 'offline', local: 'bara här' };
     chip.dataset.state = Sync.mode;
-    $('#syncLabel').textContent = `Omgång ${Sync.round.n} · ${labels[Sync.mode]}`;
+    // Smal skärm: bara omgången när allt är normalt, bara läget när något avviker (se styles.css).
+    $('#syncLabel').replaceChildren(h('span', { class: 'chip-n', text: `Omgång ${Sync.round.n}` }), h('span', { class: 'chip-sep', text: ' · ' }), h('span', { class: 'chip-state', text: labels[Sync.mode] }));
     chip.setAttribute('aria-label', `Topplistan: omgång ${Sync.round.n}, ${labels[Sync.mode]}. Visa mer.`);
   }
 

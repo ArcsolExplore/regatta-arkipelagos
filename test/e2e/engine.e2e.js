@@ -67,3 +67,16 @@ test('a hung /api/state request times out and the chip leaves "gemensam"', { tim
   assert.match(await p.locator('#syncLabel').textContent(), /offline/);
   await ctx.close();
 });
+
+test('if app.js never loads, the page says so and reports it', { timeout: 20000 }, async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const p = await ctx.newPage();
+  const logs = [];
+  await p.route('**/app.js', (r) => r.abort());
+  await p.route('**/api/log', (r) => { logs.push(r.request().postDataJSON()); r.fulfill({ status: 204 }); });
+  await p.goto(srv.url);
+  await p.waitForSelector('.bootfail', { timeout: 8000 });
+  assert.match(await p.locator('.bootfail').textContent(), /kunde inte starta/);
+  assert.ok(logs.some((l) => l.kind === 'boot'));
+  await ctx.close();
+});

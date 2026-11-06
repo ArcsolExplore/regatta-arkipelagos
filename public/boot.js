@@ -30,8 +30,12 @@
   });
   window.addEventListener('unhandledrejection', (e) => report({ kind: 'promise', err: e.reason }));
   // Startade appen aldrig (t.ex. ett skript som inte laddades)? Visa det i stället för en tom sida.
-  setTimeout(() => {
-    if (window.__raBooted) return;
+  // Kontrollen görs tre sekunder efter att sidan laddat klart (långsamt nät ger alltså inget falskt larm),
+  // och senast efter 45 sekunder.
+  let checked = false;
+  const check = () => {
+    if (checked || window.__raBooted) return;
+    checked = true;
     report({ kind: 'boot', msg: 'app did not boot' });
     const d = document.createElement('div');
     d.className = 'bootfail';
@@ -41,5 +45,7 @@
     b.addEventListener('click', () => location.reload());
     d.append(b);
     document.body.append(d);
-  }, 10000);
+  };
+  window.addEventListener('load', () => setTimeout(check, 3000));
+  setTimeout(check, 45000);
 })();
